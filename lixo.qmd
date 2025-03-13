@@ -1,0 +1,4447 @@
+---
+title: "Untitled"
+format: html
+editor: visual
+---
+
+# PREDICTION
+
+## 0 to 60
+
+```{r}
+
+wd_0_60 = weather_data %>% 
+  dplyr::filter(days >= 0 & days <= 60)
+
+
+train_0_60 <- sample(1:nrow(wd_0_60), 0.95 * nrow(wd_0_60)) 
+
+
+train_data_0_60 <- wd_0_60[train_0_60, ]
+test_data_0_60 <- wd_0_60[-train_0_60, ]
+```
+
+```{r}
+model_0_60 = gam(
+  mean_sev~ s(T2M_MIN,bs='cr', k =60) + s(lat, lon, bs = "tp", k = 60) + s(days_difference, bs = "cr", k =60) + s(T2M,RH2M, bs = 'tp', k =60) + s(T2M_MAX, bs = "cr", k = 60) + s(PRECTOTCORR, bs = "cr", k = 60) + s(DPD, bs = "cr", k = 60),
+  family = betar(),
+  data = wd_0_60,
+  method = "REML")
+
+gc()
+```
+
+```{r}
+summary(model_0_60)
+gam.check(model_0_60)
+AIC(model_0_60)
+BIC(model_0_60)
+```
+
+```{r}
+model_0_60_pf = gam(
+  mean_sev~s(T2M_MIN,by = level1, bs='cr', k =100) +
+    s(lat, bs = "cr", k = 30)+
+    s(days_difference,by = level1, bs = "cr", k =60)+
+    s(T2M,RH2M,by = level1,bs = 'tp', k =100)+
+    s(T2M_MAX,by = level1,bs = "cr", k = 100)+
+    s(PRECTOTCORR,by = level1,bs = "cr", k = 100)+
+    s(DPD,by = level1,bs = "cr", k = 100),
+  family = betar(),
+  data = train_data_0_60,
+  method = "REML")
+
+gc()
+
+
+pred_0_60 = predict.gam(model_0_60_pf, newdata = test_data_0_60, type = "response")
+pred_0_60 = as.data.frame(pred_0_60)
+test_data_0_60 = as.data.frame(test_data_0_60)
+CCC_0_60 <- epi.ccc(test_data_0_60$mean_sev, pred_0_60$pred_0_60)
+print(CCC_0_60$rho.c) 
+
+
+rhoc_0_60 <- CCC_0_60$rho.c   
+Cb_0_60  <- CCC_0_60$C.b     
+
+
+rho_0_60 <- rhoc_0_60 / Cb_0_60
+rho_0_60
+
+# Extraindo os valores observados e preditos
+observed <- test_data_0_60$mean_sev  # Substitua pelo nome da sua variável resposta
+predicted <- pred_0_60$pred_0_60     # Ou o nome correto da coluna dos valores preditos
+
+# Calculando o RMSE
+rmse <- sqrt(mean((observed - predicted)^2))
+
+# Exibindo o RMSE
+print(rmse)
+
+
+
+test_data_0_60$pred = pred_0_60$pred_0_60
+
+test_data_0_60 %>% 
+  filter(!mean_sev >= 0.7) %>% 
+  ggplot(aes(mean_sev, pred))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)+
+  scale_x_continuous(breaks = c(0.00, 0.25, 0.50, 0.75), limits = c(0.00, 0.75))+
+  scale_y_continuous(breaks = c(0.00, 0.25, 0.50, 0.75), limits = c(0.00, 0.75))+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"))+
+  labs(x = "Observed (%)",
+       y = "Predicted (%)")
+```
+
+```{r}
+
+wd_0_60 = weather_data %>% 
+  dplyr::filter(days >= 0 & days <= 60)
+
+
+train_0_60 <- sample(1:nrow(wd_0_60), 0.95 * nrow(wd_0_60)) 
+
+
+train_data_0_60 <- wd_0_60[train_0_60, ]
+test_data_0_60 <- wd_0_60[-train_0_60, ]
+
+
+gbm.fit = gbm(mean_sev ~ (T2M_MAX + T2M_MIN + T2M:RH2M + days_difference):level1,
+              data = train_data_0_60,
+              distribution = "gaussian",
+              n.trees = 783,
+              interaction.depth = 10,
+              shrinkage = 0.1,
+              cv.folds = 10,
+              n.cores = NULL, # will use all cores by default
+              verbose = FALSE)
+print(gbm.fit)
+
+best_trees_interaction <- gbm.perf(gbm.fit, method = "cv")
+
+
+pred = predict(gbm.fit, newdata = test_data_0_60, ntrees = 5000 )
+pred = as.data.frame(pred)
+
+CCC_0_60 <- epi.ccc(test_data_0_60$mean_sev, pred$pred)
+
+print(CCC_0_60$rho.c) 
+
+
+rhoc_0_60 <- CCC_0_60$rho.c   
+Cb_0_60  <- CCC_0_60$C.b     
+
+
+rho_0_60 <- rhoc_0_60 / Cb_0_60
+rho_0_60
+
+
+observed <- test_data_0_60$mean_sev  # Substitua pelo nome da sua variável resposta
+predicted <- pred$pred     # Ou o nome correto da coluna dos valores preditos
+
+# Calculando o RMSE
+rmse <- sqrt(mean((observed - predicted)^2))
+
+# Exibindo o RMSE
+print(rmse)
+
+test_data_0_60$pred = pred$pred
+
+
+test_data_0_60 %>% 
+  filter(!mean_sev >= 0.7) %>% 
+  ggplot(aes(mean_sev, pred))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)+
+  scale_x_continuous(breaks = c(0.00, 0.25, 0.50, 0.75), limits = c(0.00, 0.75))+
+  scale_y_continuous(breaks = c(0.00, 0.25, 0.50, 0.75), limits = c(0.00, 0.75))+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"))+
+  labs(x = "Observed (%)",
+       y = "Predicted (%)")
+
+
+summary(
+  gbm.fit, 
+  #cBars = 10,
+  method = relative.influence
+)
+```
+
+### Partial effect
+
+#### Smooth estimation
+
+```{r}
+
+library(gratia)
+
+effects_days_0_60 <- smooth_estimates(model_0_60, smooth = "s(days_difference)")
+effects_t2m_max_0_60 <- smooth_estimates(model_0_60, smooth = "s(T2M_MAX)")
+effects_t2m_min_0_60 <- smooth_estimates(model_0_60, smooth = "s(T2M_MIN)")
+effects_latlon_0_60 <- smooth_estimates(model_0_60, smooth = "s(lat,lon)")
+effects_t2m_rh2m_0_60 <- smooth_estimates(model_0_60, smooth = "s(T2M,RH2M)")
+effects_dpd_0_60 <- smooth_estimates(model_0_60, smooth = "s(DPD)")
+effects_PRECTOTCORR_0_60 <- smooth_estimates(model_0_60, smooth = "s(PRECTOTCORR)")
+```
+
+#### Confidence interval
+
+```{r}
+
+# T2M/RH2M
+
+effects_t2m_rh2m_0_60$upper <- effects_t2m_rh2m_0_60$.estimate + 1.96 * effects_t2m_rh2m_0_60$.se  
+effects_t2m_rh2m_0_60$lower <- effects_t2m_rh2m_0_60$.estimate - 1.96 * effects_t2m_rh2m_0_60$.se 
+
+# T2M MAX
+
+effects_t2m_max_0_60$upper <- effects_t2m_max_0_60$.estimate + 1.96 * effects_t2m_max_0_60$.se 
+effects_t2m_max_0_60$lower <- effects_t2m_max_0_60$.estimate - 1.96 * effects_t2m_max_0_60$.se  
+
+# T2M MIN
+
+effects_t2m_min_0_60$upper <- effects_t2m_min_0_60$.estimate + 1.96 * effects_t2m_min_0_60$.se 
+effects_t2m_min_0_60$lower <- effects_t2m_min_0_60$.estimate - 1.96 * effects_t2m_min_0_60$.se
+
+# Rain
+
+effects_PRECTOTCORR_0_60$upper <- effects_PRECTOTCORR_0_60$.estimate + 1.96 * effects_PRECTOTCORR_0_60$.se 
+effects_PRECTOTCORR_0_60$lower <- effects_PRECTOTCORR_0_60$.estimate - 1.96 * effects_PRECTOTCORR_0_60$.se
+
+
+# Lat / Lon
+
+effects_latlon_0_60$upper <- effects_latlon_0_60$.estimate + 1.96 * effects_latlon_0_60$.se 
+effects_latlon_0_60$lower <- effects_latlon_0_60$.estimate - 1.96 * effects_latlon_0_60$.se
+
+
+# Windown
+
+
+effects_days_0_60$upper <- effects_days_0_60$.estimate + 1.96 * effects_days_0_60$.se
+effects_days_0_60$lower <- effects_days_0_60$.estimate - 1.96 * effects_days_0_60$.se
+
+# DPD
+
+
+effects_dpd_0_60$upper <- effects_dpd_0_60$.estimate + 1.96 * effects_dpd_0_60$.se
+effects_dpd_0_60$lower <- effects_dpd_0_60$.estimate - 1.96 * effects_dpd_0_60$.se
+
+```
+
+#### Inverse link function
+
+##### Estimate
+
+```{r}
+effects_t2m_rh2m_0_60$estimate2 = (exp(effects_t2m_rh2m_0_60$.estimate) / (1 + exp(effects_t2m_rh2m_0_60$.estimate)))
+effects_t2m_max_0_60$estimate2 = (exp(effects_t2m_max_0_60$.estimate) / (1 + exp(effects_t2m_max_0_60$.estimate)))
+effects_t2m_min_0_60$estimate2 = (exp(effects_t2m_min_0_60$.estimate) / (1 + exp(effects_t2m_min_0_60$.estimate)))
+effects_latlon_0_60$estimate2 = (exp(effects_latlon_0_60$.estimate) / (1 + exp(effects_latlon_0_60$.estimate)))
+effects_days_0_60$estimate2 = (exp(effects_days_0_60$.estimate) / (1 + exp(effects_days_0_60$.estimate)))
+effects_PRECTOTCORR_0_60$estimate2 = (exp(effects_PRECTOTCORR_0_60$.estimate) / (1 + exp(effects_PRECTOTCORR_0_60$.estimate)))
+effects_dpd_0_60$estimate2 = (exp(effects_dpd_0_60$.estimate) / (1 + exp(effects_dpd_0_60$.estimate)))
+
+```
+
+##### Confidence interval
+
+```{r}
+effects_t2m_rh2m_0_60$upper = (exp(effects_t2m_rh2m_0_60$upper) / (1 + exp(effects_t2m_rh2m_0_60$upper)))
+effects_t2m_rh2m_0_60$lower = (exp(effects_t2m_rh2m_0_60$lower) / (1 + exp(effects_t2m_rh2m_0_60$lower)))
+effects_t2m_rh2m_0_60$.se = (exp(effects_t2m_rh2m_0_60$.se) / (1 + exp(effects_t2m_rh2m_0_60$.se)))
+
+effects_t2m_rh2m_0_60$.by = NULL
+effects_t2m_rh2m_0_60$.type = NULL
+effects_t2m_rh2m_0_60$.estimate = NULL
+effects_t2m_0_60 = effects_t2m_rh2m_0_60
+effects_rh2m_0_60 = effects_t2m_rh2m_0_60
+effects_t2m_0_60$.smooth = NULL
+effects_rh2m_0_60$.smooth = NULL
+
+effects_t2m_0_60$RH2M = NULL
+effects_t2m_0_60$variable = "T2M"
+
+effects_rh2m_0_60$T2M = NULL
+effects_rh2m_0_60$variable = "RH2M"
+
+colnames(effects_t2m_0_60) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_rh2m_0_60) = c("se", "value","upper","lower","effect","variable")
+
+
+
+effects_t2m_max_0_60$upper = (exp(effects_t2m_max_0_60$upper) / (1 + exp(effects_t2m_max_0_60$upper)))
+effects_t2m_max_0_60$lower = (exp(effects_t2m_max_0_60$lower) / (1 + exp(effects_t2m_max_0_60$lower)))
+effects_t2m_max_0_60$.se = (exp(effects_t2m_max_0_60$.se) / (1 + exp(effects_t2m_max_0_60$.se)))
+
+effects_t2m_max_0_60$.by = NULL
+effects_t2m_max_0_60$.type = NULL
+effects_t2m_max_0_60$.estimate = NULL
+effects_t2m_max_0_60$.smooth = NULL
+effects_t2m_max_0_60$variable = "T2M_MAX"
+
+colnames(effects_t2m_max_0_60) = c("se", "value","upper","lower","effect","variable")
+
+effects_t2m_min_0_60$upper = (exp(effects_t2m_min_0_60$upper) / (1 + exp(effects_t2m_min_0_60$upper)))
+effects_t2m_min_0_60$lower = (exp(effects_t2m_min_0_60$lower) / (1 + exp(effects_t2m_min_0_60$lower)))
+effects_t2m_min_0_60$.se = (exp(effects_t2m_min_0_60$.se) / (1 + exp(effects_t2m_min_0_60$.se)))
+
+effects_t2m_min_0_60$.by = NULL
+effects_t2m_min_0_60$.type = NULL
+effects_t2m_min_0_60$.estimate = NULL
+effects_t2m_min_0_60$.smooth = NULL
+effects_t2m_min_0_60$variable = "T2M_MIN"
+
+colnames(effects_t2m_min_0_60) = c("se", "value","upper","lower","effect","variable")
+
+effects_latlon_0_60$upper = (exp(effects_latlon_0_60$upper) / (1 + exp(effects_latlon_0_60$upper)))
+effects_latlon_0_60$lower = (exp(effects_latlon_0_60$lower) / (1 + exp(effects_latlon_0_60$lower)))
+effects_latlon_0_60$.se = (exp(effects_latlon_0_60$.se) / (1 + exp(effects_latlon_0_60$.se)))
+
+effects_latlon_0_60$.by = NULL
+effects_latlon_0_60$.type = NULL
+effects_latlon_0_60$.estimate = NULL
+effects_lat_0_60 = effects_latlon_0_60
+effects_lon_0_60 = effects_latlon_0_60
+effects_lat_0_60$.smooth = NULL
+effects_lon_0_60$.smooth = NULL
+
+effects_lat_0_60$lon = NULL
+effects_lat_0_60$variable = "Latitude"
+
+effects_lon_0_60$lat = NULL
+effects_lon_0_60$variable = "Longitude"
+
+colnames(effects_lat_0_60) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_lon_0_60) = c("se", "value","upper","lower","effect","variable")
+
+effects_days_0_60$upper = (exp(effects_days_0_60$upper) / (1 + exp(effects_days_0_60$upper)))
+effects_days_0_60$lower = (exp(effects_days_0_60$lower) / (1 + exp(effects_days_0_60$lower)))
+effects_days_0_60$.se = (exp(effects_days_0_60$.se) / (1 + exp(effects_days_0_60$.se)))
+
+effects_days_0_60$.by = NULL
+effects_days_0_60$.type = NULL
+effects_days_0_60$.estimate = NULL
+effects_days_0_60$.smooth = NULL
+effects_days_0_60$variable = "Days"
+
+colnames(effects_days_0_60) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_PRECTOTCORR_0_60$upper = (exp(effects_PRECTOTCORR_0_60$upper) / (1 + exp(effects_PRECTOTCORR_0_60$upper)))
+effects_PRECTOTCORR_0_60$lower = (exp(effects_PRECTOTCORR_0_60$lower) / (1 + exp(effects_PRECTOTCORR_0_60$lower)))
+effects_PRECTOTCORR_0_60$.se = (exp(effects_PRECTOTCORR_0_60$.se) / (1 + exp(effects_PRECTOTCORR_0_60$.se)))
+
+effects_PRECTOTCORR_0_60$.by = NULL
+effects_PRECTOTCORR_0_60$.type = NULL
+effects_PRECTOTCORR_0_60$.estimate = NULL
+effects_PRECTOTCORR_0_60$.smooth = NULL
+effects_PRECTOTCORR_0_60$variable = "Rain"
+
+colnames(effects_PRECTOTCORR_0_60) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_dpd_0_60$upper = (exp(effects_dpd_0_60$upper) / (1 + exp(effects_dpd_0_60$upper)))
+effects_dpd_0_60$lower = (exp(effects_dpd_0_60$lower) / (1 + exp(effects_dpd_0_60$lower)))
+effects_dpd_0_60$.se = (exp(effects_dpd_0_60$.se) / (1 + exp(effects_dpd_0_60$.se)))
+
+effects_dpd_0_60$.by = NULL
+effects_dpd_0_60$.type = NULL
+effects_dpd_0_60$.estimate = NULL
+effects_dpd_0_60$.smooth = NULL
+effects_dpd_0_60$variable = "DPD"
+
+colnames(effects_dpd_0_60) = c("se", "value","upper","lower","effect","variable")
+
+
+pf_0_60 = rbind(effects_t2m_0_60,effects_rh2m_0_60,effects_t2m_max_0_60,effects_t2m_min_0_60,
+                effects_lat_0_60,effects_lon_0_60,effects_days_0_60,effects_PRECTOTCORR_0_60,effects_dpd_0_60)
+
+```
+
+### Plotting
+
+```{r}
+library(ggplot2)
+library(patchwork)
+
+plot_list_0_60 <- pf_0_60 %>%
+  group_by(variable) %>%
+  group_split() %>%
+  lapply(function(df) {
+    ggplot(df, aes(x = value, y = effect)) +
+      geom_smooth(
+        method = "gam", formula = y ~ s(x, bs = "cr"), 
+        se = FALSE, color = "black", size = 1.5
+      ) +
+      geom_smooth(
+        aes(value, upper), se = FALSE, color = "black", 
+        size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+      ) +
+      geom_smooth(
+        aes(value, lower), se = FALSE, color = "black", 
+        size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+      ) +
+      labs(x = unique(df$variable),
+           y = "Partial Effect"
+      ) +
+      theme_minimal() +
+      
+      theme(plot.title = element_text(hjust = 0.5),
+            text = element_text(size = 12, face = "bold"))
+  })
+
+# Combinar os gráficos
+combined_plot_0_60 <- wrap_plots(plot_list_0_60, ncol = 3)
+combined_plot_0_60
+
+ggsave("fig/partial_effect_0_60.png", dpi = 600, bg = "white", height = 6, width = 8)
+```
+
+### Prediction
+
+```{r}
+pred_0_60_pred = predict.gam(model_0_60,se.fit = T, type = "response")
+pred_0_60_pred = as.data.frame(pred_0_60_pred)
+
+
+pred_0_60_pred$T2M = wd_0_60$T2M
+pred_0_60_pred$RH2M = wd_0_60$RH2M
+pred_0_60_pred$T2M_MIN = wd_0_60$T2M_MIN
+pred_0_60_pred$T2M_MAX = wd_0_60$T2M_MAX
+pred_0_60_pred$days_difference = wd_0_60$days_difference
+pred_0_60_pred$PRECTOTCORR = wd_0_60$PRECTOTCORR
+pred_0_60_pred$lat = wd_0_60$lat
+pred_0_60_pred$lon = wd_0_60$lon
+pred_0_60_pred$DPD = wd_0_60$DPD
+
+gc()
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork) # Para combinar os gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_0_60 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Criar um gráfico para cada variável
+  p <- pred_0_60_pred %>%
+    ggplot(aes_string(x = var, y = "fit*100")) + # aes_string para usar a variável dinamicamente
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2) +
+    theme_minimal() +
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_0_60[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_0_60 <- wrap_plots(g_0_60, ncol = 3) + 
+  plot_annotation(title = "Windows: 0-60")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_0_60.png", plot_0_60, width = 12, height = 10, dpi = 300)
+
+# Visualizar o gráfico combinado
+plot_0_60
+
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork)  # Para combinar gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_0_60 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Identificar os intervalos onde y_scaled >= 30
+  highlight_ranges <- pred_0_60_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    filter(y_scaled >= 30) %>%
+    summarise(
+      xmin = min(!!sym(var), na.rm = TRUE),
+      xmax = max(!!sym(var), na.rm = TRUE)
+    )
+  
+  # Criar o gráfico para a variável
+  p <- pred_0_60_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    ggplot(aes_string(x = var, y = "y_scaled")) +
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2.5) +
+    
+    # Adicionar faixa cinza (se houver intervalo identificado)
+    { if (nrow(highlight_ranges) > 0) 
+      geom_rect(data = highlight_ranges, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+      else NULL } +
+    
+    ggthemes::theme_few() +
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_0_60[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_0_60 <- wrap_plots(g_0_60, ncol = 3) +
+  plot_annotation(title = "Windows: 0-60 (Severity > 30 Highlighted)")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_0_60_highlighted.png", plot_0_60, width = 8, height = 8, dpi = 600)
+
+# Visualizar o gráfico combinado
+print(plot_0_60)
+
+```
+
+## 0 to 90
+
+```{r}
+
+wd_0_90 = weather_data %>% 
+  dplyr::filter(days >= 0 & days <= 90)
+
+
+train_0_90 <- sample(1:nrow(wd_0_90), 0.95 * nrow(wd_0_90)) 
+
+
+train_data_0_90 <- wd_0_90[train_0_90, ]
+test_data_0_90 <- wd_0_90[-train_0_90, ]
+```
+
+```{r}
+model_0_90 = gam(
+  mean_sev~ s(T2M_MIN,bs='cr', k =60) + s(lat, lon, bs = "tp", k = 60) + s(days_difference, bs = "cr", k =60) + s(T2M,RH2M, bs = 'tp', k =60) + s(T2M_MAX, bs = "cr", k = 60) + s(PRECTOTCORR, bs = "cr", k = 60) + s(DPD, bs = "cr", k = 60),
+  family = betar(),
+  data = wd_0_90,
+  method = "REML")
+
+gc()
+```
+
+```{r}
+summary(model_0_90)
+gam.check(model_0_90)
+AIC(model_0_90)
+BIC(model_0_90)
+```
+
+```{r}
+model_0_90_pf = gam(
+  mean_sev~ s(T2M_MIN,bs='cr', k =60) + s(lat, lon, bs = "tp", k = 60) + s(days_difference, bs = "cr", k =60) + s(T2M,RH2M, bs = 'tp', k =60) + s(T2M_MAX, bs = "cr", k = 60) + s(PRECTOTCORR, bs = "cr", k = 60) + s(DPD, bs = "cr", k = 60),
+  family = betar(),
+  data = train_data_0_90,
+  method = "REML")
+
+gc()
+
+
+pred_0_90 = predict.gam(model_0_90_pf, newdata = test_data_0_90, type = "response")
+pred_0_90 = as.data.frame(pred_0_90)
+test_data_0_90 = as.data.frame(test_data_0_90)
+CCC_0_90 <- epi.ccc(test_data_0_90$mean_sev, pred_0_90$pred_0_90)
+print(CCC_0_90$rho.c) 
+
+
+rhoc_0_90 <- CCC_0_90$rho.c   
+Cb_0_90  <- CCC_0_90$C.b     
+
+
+rho_0_90 <- rhoc_0_90 / Cb_0_90
+rho_0_90
+```
+
+### Partial effect
+
+#### Smooth estimation
+
+```{r}
+
+library(gratia)
+
+effects_days_0_90 <- smooth_estimates(model_0_90, smooth = "s(days_difference)")
+effects_t2m_max_0_90 <- smooth_estimates(model_0_90, smooth = "s(T2M_MAX)")
+effects_t2m_min_0_90 <- smooth_estimates(model_0_90, smooth = "s(T2M_MIN)")
+effects_latlon_0_90 <- smooth_estimates(model_0_90, smooth = "s(lat,lon)")
+effects_t2m_rh2m_0_90 <- smooth_estimates(model_0_90, smooth = "s(T2M,RH2M)")
+effects_dpd_0_90 <- smooth_estimates(model_0_90, smooth = "s(DPD)")
+effects_PRECTOTCORR_0_90 <- smooth_estimates(model_0_90, smooth = "s(PRECTOTCORR)")
+```
+
+#### Confidence interval
+
+```{r}
+
+# T2M/RH2M
+
+effects_t2m_rh2m_0_90$upper <- effects_t2m_rh2m_0_90$.estimate + 1.96 * effects_t2m_rh2m_0_90$.se  
+effects_t2m_rh2m_0_90$lower <- effects_t2m_rh2m_0_90$.estimate - 1.96 * effects_t2m_rh2m_0_90$.se 
+
+# T2M MAX
+
+effects_t2m_max_0_90$upper <- effects_t2m_max_0_90$.estimate + 1.96 * effects_t2m_max_0_90$.se 
+effects_t2m_max_0_90$lower <- effects_t2m_max_0_90$.estimate - 1.96 * effects_t2m_max_0_90$.se  
+
+# T2M MIN
+
+effects_t2m_min_0_90$upper <- effects_t2m_min_0_90$.estimate + 1.96 * effects_t2m_min_0_90$.se 
+effects_t2m_min_0_90$lower <- effects_t2m_min_0_90$.estimate - 1.96 * effects_t2m_min_0_90$.se
+
+# Rain
+
+effects_PRECTOTCORR_0_90$upper <- effects_PRECTOTCORR_0_90$.estimate + 1.96 * effects_PRECTOTCORR_0_90$.se 
+effects_PRECTOTCORR_0_90$lower <- effects_PRECTOTCORR_0_90$.estimate - 1.96 * effects_PRECTOTCORR_0_90$.se
+
+
+# Lat / Lon
+
+effects_latlon_0_90$upper <- effects_latlon_0_90$.estimate + 1.96 * effects_latlon_0_90$.se 
+effects_latlon_0_90$lower <- effects_latlon_0_90$.estimate - 1.96 * effects_latlon_0_90$.se
+
+
+# Windown
+
+
+effects_days_0_90$upper <- effects_days_0_90$.estimate + 1.96 * effects_days_0_90$.se
+effects_days_0_90$lower <- effects_days_0_90$.estimate - 1.96 * effects_days_0_90$.se
+
+# DPD
+
+
+effects_dpd_0_90$upper <- effects_dpd_0_90$.estimate + 1.96 * effects_dpd_0_90$.se
+effects_dpd_0_90$lower <- effects_dpd_0_90$.estimate - 1.96 * effects_dpd_0_90$.se
+
+```
+
+#### Inverse link function
+
+##### Estimate
+
+```{r}
+effects_t2m_rh2m_0_90$estimate2 = (exp(effects_t2m_rh2m_0_90$.estimate) / (1 + exp(effects_t2m_rh2m_0_90$.estimate)))
+effects_t2m_max_0_90$estimate2 = (exp(effects_t2m_max_0_90$.estimate) / (1 + exp(effects_t2m_max_0_90$.estimate)))
+effects_t2m_min_0_90$estimate2 = (exp(effects_t2m_min_0_90$.estimate) / (1 + exp(effects_t2m_min_0_90$.estimate)))
+effects_latlon_0_90$estimate2 = (exp(effects_latlon_0_90$.estimate) / (1 + exp(effects_latlon_0_90$.estimate)))
+effects_days_0_90$estimate2 = (exp(effects_days_0_90$.estimate) / (1 + exp(effects_days_0_90$.estimate)))
+effects_PRECTOTCORR_0_90$estimate2 = (exp(effects_PRECTOTCORR_0_90$.estimate) / (1 + exp(effects_PRECTOTCORR_0_90$.estimate)))
+effects_dpd_0_90$estimate2 = (exp(effects_dpd_0_90$.estimate) / (1 + exp(effects_dpd_0_90$.estimate)))
+
+```
+
+##### Confidence interval
+
+```{r}
+effects_t2m_rh2m_0_90$upper = (exp(effects_t2m_rh2m_0_90$upper) / (1 + exp(effects_t2m_rh2m_0_90$upper)))
+effects_t2m_rh2m_0_90$lower = (exp(effects_t2m_rh2m_0_90$lower) / (1 + exp(effects_t2m_rh2m_0_90$lower)))
+effects_t2m_rh2m_0_90$.se = (exp(effects_t2m_rh2m_0_90$.se) / (1 + exp(effects_t2m_rh2m_0_90$.se)))
+
+effects_t2m_rh2m_0_90$.by = NULL
+effects_t2m_rh2m_0_90$.type = NULL
+effects_t2m_rh2m_0_90$.estimate = NULL
+effects_t2m_0_90 = effects_t2m_rh2m_0_90
+effects_rh2m_0_90 = effects_t2m_rh2m_0_90
+effects_t2m_0_90$.smooth = NULL
+effects_rh2m_0_90$.smooth = NULL
+
+effects_t2m_0_90$RH2M = NULL
+effects_t2m_0_90$variable = "T2M"
+
+effects_rh2m_0_90$T2M = NULL
+effects_rh2m_0_90$variable = "RH2M"
+
+colnames(effects_t2m_0_90) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_rh2m_0_90) = c("se", "value","upper","lower","effect","variable")
+
+
+
+effects_t2m_max_0_90$upper = (exp(effects_t2m_max_0_90$upper) / (1 + exp(effects_t2m_max_0_90$upper)))
+effects_t2m_max_0_90$lower = (exp(effects_t2m_max_0_90$lower) / (1 + exp(effects_t2m_max_0_90$lower)))
+effects_t2m_max_0_90$.se = (exp(effects_t2m_max_0_90$.se) / (1 + exp(effects_t2m_max_0_90$.se)))
+
+effects_t2m_max_0_90$.by = NULL
+effects_t2m_max_0_90$.type = NULL
+effects_t2m_max_0_90$.estimate = NULL
+effects_t2m_max_0_90$.smooth = NULL
+effects_t2m_max_0_90$variable = "T2M_MAX"
+
+colnames(effects_t2m_max_0_90) = c("se", "value","upper","lower","effect","variable")
+
+effects_t2m_min_0_90$upper = (exp(effects_t2m_min_0_90$upper) / (1 + exp(effects_t2m_min_0_90$upper)))
+effects_t2m_min_0_90$lower = (exp(effects_t2m_min_0_90$lower) / (1 + exp(effects_t2m_min_0_90$lower)))
+effects_t2m_min_0_90$.se = (exp(effects_t2m_min_0_90$.se) / (1 + exp(effects_t2m_min_0_90$.se)))
+
+effects_t2m_min_0_90$.by = NULL
+effects_t2m_min_0_90$.type = NULL
+effects_t2m_min_0_90$.estimate = NULL
+effects_t2m_min_0_90$.smooth = NULL
+effects_t2m_min_0_90$variable = "T2M_MIN"
+
+colnames(effects_t2m_min_0_90) = c("se", "value","upper","lower","effect","variable")
+
+effects_latlon_0_90$upper = (exp(effects_latlon_0_90$upper) / (1 + exp(effects_latlon_0_90$upper)))
+effects_latlon_0_90$lower = (exp(effects_latlon_0_90$lower) / (1 + exp(effects_latlon_0_90$lower)))
+effects_latlon_0_90$.se = (exp(effects_latlon_0_90$.se) / (1 + exp(effects_latlon_0_90$.se)))
+
+effects_latlon_0_90$.by = NULL
+effects_latlon_0_90$.type = NULL
+effects_latlon_0_90$.estimate = NULL
+effects_lat_0_90 = effects_latlon_0_90
+effects_lon_0_90 = effects_latlon_0_90
+effects_lat_0_90$.smooth = NULL
+effects_lon_0_90$.smooth = NULL
+
+effects_lat_0_90$lon = NULL
+effects_lat_0_90$variable = "Latitude"
+
+effects_lon_0_90$lat = NULL
+effects_lon_0_90$variable = "Longitude"
+
+colnames(effects_lat_0_90) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_lon_0_90) = c("se", "value","upper","lower","effect","variable")
+
+effects_days_0_90$upper = (exp(effects_days_0_90$upper) / (1 + exp(effects_days_0_90$upper)))
+effects_days_0_90$lower = (exp(effects_days_0_90$lower) / (1 + exp(effects_days_0_90$lower)))
+effects_days_0_90$.se = (exp(effects_days_0_90$.se) / (1 + exp(effects_days_0_90$.se)))
+
+effects_days_0_90$.by = NULL
+effects_days_0_90$.type = NULL
+effects_days_0_90$.estimate = NULL
+effects_days_0_90$.smooth = NULL
+effects_days_0_90$variable = "Days"
+
+colnames(effects_days_0_90) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_PRECTOTCORR_0_90$upper = (exp(effects_PRECTOTCORR_0_90$upper) / (1 + exp(effects_PRECTOTCORR_0_90$upper)))
+effects_PRECTOTCORR_0_90$lower = (exp(effects_PRECTOTCORR_0_90$lower) / (1 + exp(effects_PRECTOTCORR_0_90$lower)))
+effects_PRECTOTCORR_0_90$.se = (exp(effects_PRECTOTCORR_0_90$.se) / (1 + exp(effects_PRECTOTCORR_0_90$.se)))
+
+effects_PRECTOTCORR_0_90$.by = NULL
+effects_PRECTOTCORR_0_90$.type = NULL
+effects_PRECTOTCORR_0_90$.estimate = NULL
+effects_PRECTOTCORR_0_90$.smooth = NULL
+effects_PRECTOTCORR_0_90$variable = "Rain"
+
+colnames(effects_PRECTOTCORR_0_90) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_dpd_0_90$upper = (exp(effects_dpd_0_90$upper) / (1 + exp(effects_dpd_0_90$upper)))
+effects_dpd_0_90$lower = (exp(effects_dpd_0_90$lower) / (1 + exp(effects_dpd_0_90$lower)))
+effects_dpd_0_90$.se = (exp(effects_dpd_0_90$.se) / (1 + exp(effects_dpd_0_90$.se)))
+
+effects_dpd_0_90$.by = NULL
+effects_dpd_0_90$.type = NULL
+effects_dpd_0_90$.estimate = NULL
+effects_dpd_0_90$.smooth = NULL
+effects_dpd_0_90$variable = "DPD"
+
+colnames(effects_dpd_0_90) = c("se", "value","upper","lower","effect","variable")
+
+
+pf_0_90 = rbind(effects_t2m_0_90,effects_rh2m_0_90,effects_t2m_max_0_90,effects_t2m_min_0_90,
+                effects_lat_0_90,effects_lon_0_90,effects_days_0_90,effects_PRECTOTCORR_0_90,effects_dpd_0_90)
+
+```
+
+### Plotting
+
+```{r}
+library(ggplot2)
+library(patchwork)
+
+plot_list_0_90 <- pf_0_90 %>%
+  group_by(variable) %>%
+  group_split() %>%
+  lapply(function(df) {
+    ggplot(df, aes(x = value, y = effect)) +
+      geom_smooth(
+        method = "gam", formula = y ~ s(x, bs = "cr"), 
+        se = FALSE, color = "black", size = 1.5
+      ) +
+      geom_smooth(
+        aes(value, upper), se = FALSE, color = "black", 
+        size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+      ) +
+      geom_smooth(
+        aes(value, lower), se = FALSE, color = "black", 
+        size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+      ) +
+      labs(x = unique(df$variable),
+           y = "Partial Effect"
+      ) +
+      theme_minimal() +
+      
+      theme(plot.title = element_text(hjust = 0.5),
+            text = element_text(size = 12, face = "bold"))
+  })
+
+# Combinar os gráficos
+combined_plot_0_90 <- wrap_plots(plot_list_0_90, ncol = 3)
+combined_plot_0_90
+
+ggsave("fig/partial_effect_0_90.png", dpi = 600, bg = "white", height = 6, width = 8)
+```
+
+### Prediction
+
+```{r}
+pred_0_90_pred = predict.gam(model_0_90,se.fit = T, type = "response")
+pred_0_90_pred = as.data.frame(pred_0_90_pred)
+
+
+pred_0_90_pred$T2M = wd_0_90$T2M
+pred_0_90_pred$RH2M = wd_0_90$RH2M
+pred_0_90_pred$T2M_MIN = wd_0_90$T2M_MIN
+pred_0_90_pred$T2M_MAX = wd_0_90$T2M_MAX
+pred_0_90_pred$days_difference = wd_0_90$days_difference
+pred_0_90_pred$PRECTOTCORR = wd_0_90$PRECTOTCORR
+pred_0_90_pred$lat = wd_0_90$lat
+pred_0_90_pred$lon = wd_0_90$lon
+pred_0_90_pred$DPD = wd_0_90$DPD
+
+gc()
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork) # Para combinar os gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_0_90 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Criar um gráfico para cada variável
+  p <- pred_0_90_pred %>%
+    ggplot(aes_string(x = var, y = "fit*100")) + # aes_string para usar a variável dinamicamente
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2) +
+    theme_minimal() +
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_0_90[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_0_90 <- wrap_plots(g_0_90, ncol = 3) + 
+  plot_annotation(title = "Windows: 0-90")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_0_90.png", plot_0_90, width = 12, height = 10, dpi = 300)
+
+# Visualizar o gráfico combinado
+plot_0_90
+
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork)  # Para combinar gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_0_90 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Identificar os intervalos onde y_scaled >= 30
+  highlight_ranges <- pred_0_90_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    filter(y_scaled >= 30) %>%
+    summarise(
+      xmin = min(!!sym(var), na.rm = TRUE),
+      xmax = max(!!sym(var), na.rm = TRUE)
+    )
+  
+  # Criar o gráfico para a variável
+  p <- pred_0_90_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    ggplot(aes_string(x = var, y = "y_scaled")) +
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2.5) +
+    
+    # Adicionar faixa cinza (se houver intervalo identificado)
+    { if (nrow(highlight_ranges) > 0) 
+      geom_rect(data = highlight_ranges, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+      else NULL } +
+    
+    ggthemes::theme_few() +
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_0_90[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_0_90 <- wrap_plots(g_0_90, ncol = 3) +
+  plot_annotation(title = "Windows: 0-90 (Severity > 30 Highlighted)")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_0_90_highlighted.png", plot_0_90, width = 8, height = 8, dpi = 600)
+
+# Visualizar o gráfico combinado
+print(plot_0_90)
+
+```
+
+# SCRIPT DO GAM QUE RETIREI DO CODE PRINCIPAL E SUBSTITUÍ POR INLA MODEL
+
+### Overall
+#### 0-30 | 30-60 | 60-90
+
+```{r}
+weather_data <- weather_data %>%
+  filter(!days<0) %>% 
+dplyr::mutate(windows = case_when(
+    days >= 0 & days <= 30  ~ "0_30",
+    days >= 30 & days <= 60  ~ "30_60",
+    days >= 60 & days <= 90  ~ "60_90",
+    days >= 0 & days <= 60  ~ "0_60",
+    days >= 0 & days <= 90  ~ "0_90",
+    days >= 30 & days <= 90  ~ "30_90"
+  ))
+
+unique(weather_data$windows)
+```
+
+
+```{r}
+RH2M_overall <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 0 & days <= 90) %>%   
+  dplyr::group_by(windows) %>% 
+  summarise(
+    mean_RH2M = mean(RH2M, na.rm = TRUE),      
+    up_95 = quantile(RH2M, 0.975, na.rm = TRUE),  
+    low_95 = quantile(RH2M, 0.025, na.rm = TRUE), 
+    se = sd(RH2M, na.rm = TRUE) / sqrt(n()),    
+    max_RH2M = max(RH2M, na.rm = TRUE),         
+    min_RH2M = min(RH2M, na.rm = TRUE)         
+  )
+
+
+T2M_MAX_overall <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 0 & days <= 90) %>%
+   dplyr::group_by(windows) %>% 
+  summarise(
+    mean_T2M_MAX = mean(T2M_MAX, na.rm = TRUE),      
+    up_95 = quantile(T2M_MAX, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M_MAX, 0.025, na.rm = TRUE), 
+    se = sd(T2M_MAX, na.rm = TRUE) / sqrt(n()),    
+    max_T2M_MAX = max(T2M_MAX, na.rm = TRUE),         
+    min_T2M_MAX = min(T2M_MAX, na.rm = TRUE)         
+  )
+
+
+T2M_MIN_overall <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 0 & days <= 90) %>%
+   dplyr::group_by(windows) %>% 
+  summarise(
+    mean_T2M_MIN = mean(T2M_MIN, na.rm = TRUE),      
+    up_95 = quantile(T2M_MIN, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M_MIN, 0.025, na.rm = TRUE), 
+    se = sd(T2M_MIN, na.rm = TRUE) / sqrt(n()),    
+    max_T2M_MIN = max(T2M_MIN, na.rm = TRUE),         
+    min_T2M_MIN = min(T2M_MIN, na.rm = TRUE)         
+  )
+
+
+T2M_overall <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 0 & days <= 90) %>% 
+   dplyr::group_by(windows) %>% 
+  summarise(
+    mean_T2M = mean(T2M, na.rm = TRUE),      
+    up_95 = quantile(T2M, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M, 0.025, na.rm = TRUE), 
+    se = sd(T2M, na.rm = TRUE) / sqrt(n()),    
+    max_T2M = max(T2M, na.rm = TRUE),         
+    min_T2M = min(T2M, na.rm = TRUE)         
+  )
+
+PRECTOTCORR_overall <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 0 & days <= 90) %>% 
+   dplyr::group_by(windows) %>% 
+  summarise(
+    mean_PRECTOTCORR = mean(PRECTOTCORR, na.rm = TRUE),      
+    up_95 = quantile(PRECTOTCORR, 0.975, na.rm = TRUE),  
+    low_95 = quantile(PRECTOTCORR, 0.025, na.rm = TRUE), 
+    se = sd(PRECTOTCORR, na.rm = TRUE) / sqrt(n()),    
+    max_PRECTOTCORR = max(PRECTOTCORR, na.rm = TRUE),         
+    min_PRECTOTCORR = min(PRECTOTCORR, na.rm = TRUE)         
+  )
+
+
+DPD_overall <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 0 & days <= 90) %>% 
+   dplyr::group_by(windows) %>% 
+  summarise(
+    mean_DPD = mean(DPD, na.rm = TRUE),      
+    up_95 = quantile(DPD, 0.975, na.rm = TRUE),  
+    low_95 = quantile(DPD, 0.025, na.rm = TRUE), 
+    se = sd(DPD, na.rm = TRUE) / sqrt(n()),    
+    max_DPD = max(DPD, na.rm = TRUE),         
+    min_DPD = min(DPD, na.rm = TRUE)         
+  )
+
+days_difference_overall <- weather_data %>%
+  filter(!state == "SP") %>% 
+  summarise(
+    mean_dd = mean(days_difference, na.rm = TRUE),      
+    up_95 = quantile(days_difference, 0.975, na.rm = TRUE),  
+    low_95 = quantile(days_difference, 0.025, na.rm = TRUE), 
+    se = sd(days_difference, na.rm = TRUE) / sqrt(n()),    
+    max_dd = max(days_difference, na.rm = TRUE),         
+    min_dd = min(days_difference, na.rm = TRUE)         
+  )
+
+lat_overall <- weather_data %>%
+  filter(!state == "SP") %>% 
+  summarise(
+    mean_lat = mean(lat, na.rm = TRUE),      
+    up_95 = quantile(lat, 0.975, na.rm = TRUE),  
+    low_95 = quantile(lat, 0.025, na.rm = TRUE), 
+    se = sd(lat, na.rm = TRUE) / sqrt(n()),    
+    max_lat = max(lat, na.rm = TRUE),         
+    min_lat = min(lat, na.rm = TRUE)         
+  )
+
+
+lon_overall <- weather_data %>%
+  filter(!state == "SP") %>% 
+  summarise(
+    mean_lon = mean(lon, na.rm = TRUE),      
+    up_95 = quantile(lon, 0.975, na.rm = TRUE),  
+    low_95 = quantile(lon, 0.025, na.rm = TRUE), 
+    se = sd(lon, na.rm = TRUE) / sqrt(n()),    
+    max_lon = max(lon, na.rm = TRUE),         
+    min_lon = min(lon, na.rm = TRUE)         
+  )
+
+gc()
+```
+#### 30-90
+
+```{r}
+RH2M_30_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 30 & days <= 90) %>%
+  summarise(
+    mean_RH2M = mean(RH2M, na.rm = TRUE),      
+    up_95 = quantile(RH2M, 0.975, na.rm = TRUE),  
+    low_95 = quantile(RH2M, 0.025, na.rm = TRUE), 
+    se = sd(RH2M, na.rm = TRUE) / sqrt(n()),    
+    max_RH2M = max(RH2M, na.rm = TRUE),         
+    min_RH2M = min(RH2M, na.rm = TRUE)         
+  )
+
+
+T2M_MAX_30_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+ filter(days >= 30 & days <= 90) %>%
+  summarise(
+    mean_T2M_MAX = mean(T2M_MAX, na.rm = TRUE),      
+    up_95 = quantile(T2M_MAX, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M_MAX, 0.025, na.rm = TRUE), 
+    se = sd(T2M_MAX, na.rm = TRUE) / sqrt(n()),    
+    max_T2M_MAX = max(T2M_MAX, na.rm = TRUE),         
+    min_T2M_MAX = min(T2M_MAX, na.rm = TRUE)         
+  )
+
+
+T2M_MIN_30_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 30 & days <= 90) %>% 
+  summarise(
+    mean_T2M_MIN = mean(T2M_MIN, na.rm = TRUE),      
+    up_95 = quantile(T2M_MIN, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M_MIN, 0.025, na.rm = TRUE), 
+    se = sd(T2M_MIN, na.rm = TRUE) / sqrt(n()),    
+    max_T2M_MIN = max(T2M_MIN, na.rm = TRUE),         
+    min_T2M_MIN = min(T2M_MIN, na.rm = TRUE)         
+  )
+
+
+T2M_30_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+   filter(days >= 30 & days <= 90) %>% 
+  summarise(
+    mean_T2M = mean(T2M, na.rm = TRUE),      
+    up_95 = quantile(T2M, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M, 0.025, na.rm = TRUE), 
+    se = sd(T2M, na.rm = TRUE) / sqrt(n()),    
+    max_T2M = max(T2M, na.rm = TRUE),         
+    min_T2M = min(T2M, na.rm = TRUE)         
+  )
+
+PRECTOTCORR_30_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+   filter(days >= 30 & days <= 90) %>% 
+  summarise(
+    mean_PRECTOTCORR = mean(PRECTOTCORR, na.rm = TRUE),      
+    up_95 = quantile(PRECTOTCORR, 0.975, na.rm = TRUE),  
+    low_95 = quantile(PRECTOTCORR, 0.025, na.rm = TRUE), 
+    se = sd(PRECTOTCORR, na.rm = TRUE) / sqrt(n()),    
+    max_PRECTOTCORR = max(PRECTOTCORR, na.rm = TRUE),         
+    min_PRECTOTCORR = min(PRECTOTCORR, na.rm = TRUE)         
+  )
+
+
+DPD_30_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+   filter(days >= 30 & days <= 90) %>% 
+  summarise(
+    mean_DPD = mean(DPD, na.rm = TRUE),      
+    up_95 = quantile(DPD, 0.975, na.rm = TRUE),  
+    low_95 = quantile(DPD, 0.025, na.rm = TRUE), 
+    se = sd(DPD, na.rm = TRUE) / sqrt(n()),    
+    max_DPD = max(DPD, na.rm = TRUE),         
+    min_DPD = min(DPD, na.rm = TRUE)         
+  )
+
+```
+
+#### 0-60
+
+```{r}
+RH2M_0_60 <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 0 & days <= 60) %>%
+  summarise(
+    mean_RH2M = mean(RH2M, na.rm = TRUE),      
+    up_95 = quantile(RH2M, 0.975, na.rm = TRUE),  
+    low_95 = quantile(RH2M, 0.025, na.rm = TRUE), 
+    se = sd(RH2M, na.rm = TRUE) / sqrt(n()),    
+    max_RH2M = max(RH2M, na.rm = TRUE),         
+    min_RH2M = min(RH2M, na.rm = TRUE)         
+  )
+
+
+T2M_MAX_0_60 <- weather_data %>%
+  filter(!state == "SP") %>%             
+ filter(days >= 0 & days <= 60) %>%
+  summarise(
+    mean_T2M_MAX = mean(T2M_MAX, na.rm = TRUE),      
+    up_95 = quantile(T2M_MAX, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M_MAX, 0.025, na.rm = TRUE), 
+    se = sd(T2M_MAX, na.rm = TRUE) / sqrt(n()),    
+    max_T2M_MAX = max(T2M_MAX, na.rm = TRUE),         
+    min_T2M_MAX = min(T2M_MAX, na.rm = TRUE)         
+  )
+
+
+T2M_MIN_0_60 <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 0 & days <= 60) %>% 
+  summarise(
+    mean_T2M_MIN = mean(T2M_MIN, na.rm = TRUE),      
+    up_95 = quantile(T2M_MIN, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M_MIN, 0.025, na.rm = TRUE), 
+    se = sd(T2M_MIN, na.rm = TRUE) / sqrt(n()),    
+    max_T2M_MIN = max(T2M_MIN, na.rm = TRUE),         
+    min_T2M_MIN = min(T2M_MIN, na.rm = TRUE)         
+  )
+
+
+T2M_0_60 <- weather_data %>%
+  filter(!state == "SP") %>%             
+   filter(days >= 0 & days <= 60) %>% 
+  summarise(
+    mean_T2M = mean(T2M, na.rm = TRUE),      
+    up_95 = quantile(T2M, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M, 0.025, na.rm = TRUE), 
+    se = sd(T2M, na.rm = TRUE) / sqrt(n()),    
+    max_T2M = max(T2M, na.rm = TRUE),         
+    min_T2M = min(T2M, na.rm = TRUE)         
+  )
+
+PRECTOTCORR_0_60 <- weather_data %>%
+  filter(!state == "SP") %>%             
+   filter(days >= 0 & days <= 60) %>% 
+  summarise(
+    mean_PRECTOTCORR = mean(PRECTOTCORR, na.rm = TRUE),      
+    up_95 = quantile(PRECTOTCORR, 0.975, na.rm = TRUE),  
+    low_95 = quantile(PRECTOTCORR, 0.025, na.rm = TRUE), 
+    se = sd(PRECTOTCORR, na.rm = TRUE) / sqrt(n()),    
+    max_PRECTOTCORR = max(PRECTOTCORR, na.rm = TRUE),         
+    min_PRECTOTCORR = min(PRECTOTCORR, na.rm = TRUE)         
+  )
+
+
+DPD_0_60 <- weather_data %>%
+  filter(!state == "SP") %>%             
+   filter(days >= 0 & days <= 60) %>% 
+  summarise(
+    mean_DPD = mean(DPD, na.rm = TRUE),      
+    up_95 = quantile(DPD, 0.975, na.rm = TRUE),  
+    low_95 = quantile(DPD, 0.025, na.rm = TRUE), 
+    se = sd(DPD, na.rm = TRUE) / sqrt(n()),    
+    max_DPD = max(DPD, na.rm = TRUE),         
+    min_DPD = min(DPD, na.rm = TRUE)         
+  )
+
+```
+
+
+#### 0-90
+
+```{r}
+RH2M_0_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 0 & days <= 90) %>%
+  summarise(
+    mean_RH2M = mean(RH2M, na.rm = TRUE),      
+    up_95 = quantile(RH2M, 0.975, na.rm = TRUE),  
+    low_95 = quantile(RH2M, 0.025, na.rm = TRUE), 
+    se = sd(RH2M, na.rm = TRUE) / sqrt(n()),    
+    max_RH2M = max(RH2M, na.rm = TRUE),         
+    min_RH2M = min(RH2M, na.rm = TRUE)         
+  )
+
+
+T2M_MAX_0_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+ filter(days >= 0 & days <= 90) %>%
+  summarise(
+    mean_T2M_MAX = mean(T2M_MAX, na.rm = TRUE),      
+    up_95 = quantile(T2M_MAX, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M_MAX, 0.025, na.rm = TRUE), 
+    se = sd(T2M_MAX, na.rm = TRUE) / sqrt(n()),    
+    max_T2M_MAX = max(T2M_MAX, na.rm = TRUE),         
+    min_T2M_MAX = min(T2M_MAX, na.rm = TRUE)         
+  )
+
+
+T2M_MIN_0_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+  filter(days >= 0 & days <= 90) %>% 
+  summarise(
+    mean_T2M_MIN = mean(T2M_MIN, na.rm = TRUE),      
+    up_95 = quantile(T2M_MIN, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M_MIN, 0.025, na.rm = TRUE), 
+    se = sd(T2M_MIN, na.rm = TRUE) / sqrt(n()),    
+    max_T2M_MIN = max(T2M_MIN, na.rm = TRUE),         
+    min_T2M_MIN = min(T2M_MIN, na.rm = TRUE)         
+  )
+
+
+T2M_0_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+   filter(days >= 0 & days <= 90) %>% 
+  summarise(
+    mean_T2M = mean(T2M, na.rm = TRUE),      
+    up_95 = quantile(T2M, 0.975, na.rm = TRUE),  
+    low_95 = quantile(T2M, 0.025, na.rm = TRUE), 
+    se = sd(T2M, na.rm = TRUE) / sqrt(n()),    
+    max_T2M = max(T2M, na.rm = TRUE),         
+    min_T2M = min(T2M, na.rm = TRUE)         
+  )
+
+PRECTOTCORR_0_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+   filter(days >= 0 & days <= 90) %>% 
+  summarise(
+    mean_PRECTOTCORR = mean(PRECTOTCORR, na.rm = TRUE),      
+    up_95 = quantile(PRECTOTCORR, 0.975, na.rm = TRUE),  
+    low_95 = quantile(PRECTOTCORR, 0.025, na.rm = TRUE), 
+    se = sd(PRECTOTCORR, na.rm = TRUE) / sqrt(n()),    
+    max_PRECTOTCORR = max(PRECTOTCORR, na.rm = TRUE),         
+    min_PRECTOTCORR = min(PRECTOTCORR, na.rm = TRUE)         
+  )
+
+
+DPD_0_90 <- weather_data %>%
+  filter(!state == "SP") %>%             
+   filter(days >= 0 & days <= 90) %>% 
+  summarise(
+    mean_DPD = mean(DPD, na.rm = TRUE),      
+    up_95 = quantile(DPD, 0.975, na.rm = TRUE),  
+    low_95 = quantile(DPD, 0.025, na.rm = TRUE), 
+    se = sd(DPD, na.rm = TRUE) / sqrt(n()),    
+    max_DPD = max(DPD, na.rm = TRUE),         
+    min_DPD = min(DPD, na.rm = TRUE)         
+  )
+
+```
+
+
+# Fitting
+
+# TESTE PREDIÇÃO
+
+## GAM
+```{r}
+wd_60_80 = weather_data %>% 
+  dplyr::filter(days >= 40 & days <= 60)
+
+
+wd_60_802 = wd_60_80 %>%
+  #filter(!mean_sev >= .6) %>% 
+  #filter(mean_sev > 0.05) %>% 
+  group_by(id) %>% 
+  dplyr::summarise(
+    RH2M = mean(RH2M),
+    T2M = mean(T2M),
+    T2M_MAX = mean(T2M_MAX),
+    T2M_MIN = mean(T2M_MIN),
+    DPD = mean(DPD),
+    PRECTOTCORR = mean(PRECTOTCORR),
+    lat = mean(lat),
+    lon = mean(lon),
+    days_difference = sum(days_difference),
+    mean_sev = mean(mean_sev),
+    level1 = mean(level1),
+    year1 = mean(year1)
+    )
+
+
+wd_60_802 = wd_60_802 %>% 
+  dplyr::mutate(epidemic = ifelse(mean_sev >= 0.30, 1, 0))
+
+
+modelt <- bam(
+    epidemic ~ s(T2M_MIN,bs = 'fs', k = 60) +
+      s(days_difference,bs = "fs", k = 60)+
+      #s(RH2M, bs = 'fs', k = 30) +
+      #s(T2M, by = level1, bs = 'cr', k = 30) +
+      s(T2M_MAX,bs = "fs", k = 60) +
+      s(T2M,bs = "fs", k = 60) +
+      s(PRECTOTCORR,bs = "fs", k = 60) +
+      s(DPD,bs = "fs", k = 60)+
+      #s(lat, by = level1, bs = "fs", k = 30)+
+      #s(lon, by = level1, bs = "cr", k = 30)+
+      s(T2M, RH2M,bs = "tp", k = 60),
+      #s(lat, lon, by = level1, bs = "tp", k = 60),
+    family = quasibinomial(),
+    data = wd_60_802,
+    method = "fREML")
+
+final_results = predict_gam(modelt, type = "response")
+final_results = as.data.frame(final_results)
+dat_rf_05 <- data.frame(
+  ID = 1:nrow(wd_60_802),          # Identificador único (opcional)
+  Observed = wd_60_802$epidemic,   # Valores observados (0 ou 1)
+  Predicted = final_results$final_results
+            # Probabilidades preditas pelo modelo
+)
+#binomial(link = "logit")
+optimal.thresholds(dat_rf_05)
+cm_rf_05 = confusionMatrix(data = as.factor(as.numeric(final_results$final_results  > 0.64)),  mode= "everything",  reference = as.factor(wd_60_802$epidemic))
+cm_rf_05
+```
+
+
+```{r}
+set.seed(123)
+
+acc <- NULL
+for(i in 1:nrow(wd_60_802))
+{
+    # Train-test splitting
+    # 499 samples -> fitting
+    # 1 sample -> testing
+    train <- wd_60_802[-i,]
+    test <- wd_60_802[i,]
+    
+    # Fitting
+
+    modelt <- bam(
+   epidemic ~ s(T2M_MIN,bs = 'fs', k = 60) +
+      s(days_difference,bs = "fs", k = 60)+
+      #s(RH2M, by = level1, bs = 'cr', k = 30) +
+      #s(T2M, by = level1, bs = 'cr', k = 30) +
+      s(T2M_MAX,bs = "fs", k = 60) +
+      s(T2M,bs = "fs", k = 60) +
+      s(PRECTOTCORR,bs = "fs", k = 60) +
+      s(DPD,bs = "fs", k = 60)+
+      #s(lat, by = level1, bs = "cr", k = 30)+
+      #s(lon, by = level1, bs = "cr", k = 30)+
+      s(T2M, RH2M,bs = "fs", k = 60),
+      #s(lat, lon, by = level1, bs = "tp", k = 60),
+    family = quasibinomial(),
+    data = train,
+    method = "fREML")
+    
+    # Predict results
+    results_prob <- predict(modelt,test,type='response')
+    
+    # If prob > 0.5 then 1, else 0
+    results <- ifelse(results_prob > 0.64,1,0)
+    
+    # Actual answers
+    answers <- test$epidemic
+    
+    # Calculate accuracy
+    misClasificError <- mean(answers != results)
+    
+    # Collecting results
+    acc[i] <- 1-misClasificError
+}
+
+# Average accuracy of the model
+mean(acc)
+```
+
+## Random Forest
+```{r}
+set.seed(123)
+
+acc <- NULL
+for(i in 1:nrow(wd_60_802))
+{
+    # Train-test splitting
+    # 499 samples -> fitting
+    # 1 sample -> testing
+    train <- wd_60_802[-i,]
+    test <- wd_60_802[i,]
+    
+    # Fitting
+
+    modelt <- randomForest(epidemic ~ T2M + T2M_MAX + T2M_MIN + 
+                             RH2M + days_difference + DPD +
+                             PRECTOTCORR, data = train, importance = TRUE, ntree = 100)
+
+    
+    # Predict results
+    results_prob <- predict(modelt,test,type='response')
+    
+    # If prob > 0.5 then 1, else 0
+    results <- ifelse(results_prob > 0.50,1,0)
+    
+    # Actual answers
+    answers <- test$epidemic
+    
+    # Calculate accuracy
+    misClasificError <- mean(answers != results)
+    
+    # Collecting results
+    acc[i] <- 1-misClasificError
+}
+
+# Average accuracy of the model
+mean(acc)
+```
+
+
+```{r}
+
+modelt2 <- randomForest(epidemic ~ T2M + RH2M , data = wd_60_8022, importance = TRUE, ntree = 100)
+
+final_results2 = predict(modelt2, type = "response")
+final_results2 = as.data.frame(final_results2)
+dat_rf_052 <- data.frame(
+  ID = 1:nrow(wd_60_8022),          # Identificador único (opcional)
+  Observed = wd_60_8022$epidemic,   # Valores observados (0 ou 1)
+  Predicted = final_results2$final_results2
+            # Probabilidades preditas pelo modelo
+)
+
+optimal.thresholds(dat_rf_052)
+cm_rf_052 = confusionMatrix(data = as.factor(as.numeric(final_results2$final_results2  > 0.50)),  mode= "everything",  reference = as.factor(wd_60_8022$epidemic))
+cm_rf_052
+```
+```{r}
+# Plotar a importância com customizações
+varImpPlot(modelt2, 
+           type = 1,         # Use '1' para Mean Decrease Accuracy ou '2' para Mean Decrease Gini
+           main = "Importância das Variáveis - Random Forest",
+           col = "blue",     # Cor das barras
+           cex = 0.8)  
+```
+
+
+## 0 to 20
+
+```{r}
+
+wd_0_20 = weather_data %>% 
+  dplyr::filter(days >= 0 & days <= 20)
+
+
+train_0_20 <- sample(1:nrow(wd_0_20), 0.95 * nrow(wd_0_20)) 
+  
+  
+  train_data_0_20 <- wd_0_20[train_0_20, ]
+  test_data_0_20 <- wd_0_20[-train_0_20, ]
+  
+```
+
+```{r}
+library(mgcv)
+model_0_20 = bam(
+ mean_sev~ s(T2M_MIN,bs='cr', k =60) + 
+           s(lat, lon, bs = "tp", k = 60) + 
+           s(days_difference, bs = "cr", k =60) +
+           s(T2M,RH2M, bs = 'tp', k =60) +
+           s(T2M_MAX, bs = "cr", k = 60) +
+           s(PRECTOTCORR, bs = "cr", k = 60) +
+           #s(year1, bs = "cr", k = 10)+
+           s(DPD, bs = "cr", k = 60),
+          family = betar(),
+          data = wd_0_20,
+          method = "fREML")
+
+
+gc()
+gratia::draw(model_0_20)
+```
+
+```{r}
+summary(model_0_20)
+gam.check(model_0_20)
+AIC(model_0_20)
+BIC(model_0_20)
+```
+
+```{r}
+
+model_0_20_pf = gam(
+ mean_sev~s(T2M_MIN, bs='cr', k =60) +
+          s(lat, lon, bs = "tp", k = 60)+
+          s(days_difference, bs = "cr", k =60)+
+          s(T2M,RH2M,bs = 'tp', k =60)+
+          s(T2M_MAX,bs = "cr", k = 60)+
+          s(PRECTOTCORR,bs = "cr", k = 60)+
+          s(DPD,bs = "cr", k = 60),
+          family = betar(),
+  data = train_data_0_20,
+  method = "REML")
+
+gc()
+
+library(epiR)
+
+pred_0_20 = predict.gam(model_0_20_pf, newdata = test_data_0_20, type = "response")
+pred_0_20 = as.data.frame(pred_0_20)
+test_data_0_20 = as.data.frame(test_data_0_20)
+CCC_0_20 <- epi.ccc(test_data_0_20$mean_sev, pred_0_20$pred_0_20)
+print(CCC_0_20$rho.c) 
+
+# Obter os valores do CCC e C_b
+rhoc_0_20 <- CCC_0_20$rho.c    # CCC principal
+Cb_0_20  <- CCC_0_20$C.b      # Fator de correção de viés
+
+# Calcular a correlação de Pearson (rho)
+rho_0_20 <- rhoc_0_20 / Cb_0_20
+
+test_data_0_20$pred = pred_0_20$pred_0_20
+
+test_data_0_20 %>% 
+  ggplot(aes(mean_sev, pred))+
+  geom_point()
+
+```
+
+### Partial effect
+
+#### Smooth estimation
+
+```{r}
+
+library(gratia)
+
+effects_days_0_20 <- smooth_estimates(model_0_20, smooth = "s(days_difference)")
+effects_t2m_max_0_20 <- smooth_estimates(model_0_20, smooth = "s(T2M_MAX)")
+effects_t2m_min_0_20 <- smooth_estimates(model_0_20, smooth = "s(T2M_MIN)")
+effects_latlon_0_20 <- smooth_estimates(model_0_20, smooth = "s(lat,lon)")
+effects_t2m_rh2m_0_20 <- smooth_estimates(model_0_20, smooth = "s(T2M,RH2M)")
+effects_dpd_0_20 <- smooth_estimates(model_0_20, smooth = "s(DPD)")
+effects_PRECTOTCORR_0_20 <- smooth_estimates(model_0_20, smooth = "s(PRECTOTCORR)")
+
+
+```
+
+#### Confidence interval
+
+```{r}
+
+# T2M/RH2M
+
+effects_t2m_rh2m_0_20$upper <- effects_t2m_rh2m_0_20$.estimate + 1.96 * effects_t2m_rh2m_0_20$.se  
+effects_t2m_rh2m_0_20$lower <- effects_t2m_rh2m_0_20$.estimate - 1.96 * effects_t2m_rh2m_0_20$.se 
+
+# T2M MAX
+
+effects_t2m_max_0_20$upper <- effects_t2m_max_0_20$.estimate + 1.96 * effects_t2m_max_0_20$.se 
+effects_t2m_max_0_20$lower <- effects_t2m_max_0_20$.estimate - 1.96 * effects_t2m_max_0_20$.se  
+
+# T2M MIN
+
+effects_t2m_min_0_20$upper <- effects_t2m_min_0_20$.estimate + 1.96 * effects_t2m_min_0_20$.se 
+effects_t2m_min_0_20$lower <- effects_t2m_min_0_20$.estimate - 1.96 * effects_t2m_min_0_20$.se
+
+# Rain
+
+effects_PRECTOTCORR_0_20$upper <- effects_PRECTOTCORR_0_20$.estimate + 1.96 * effects_PRECTOTCORR_0_20$.se 
+effects_PRECTOTCORR_0_20$lower <- effects_PRECTOTCORR_0_20$.estimate - 1.96 * effects_PRECTOTCORR_0_20$.se
+
+
+# Lat / Lon
+
+effects_latlon_0_20$upper <- effects_latlon_0_20$.estimate + 1.96 * effects_latlon_0_20$.se 
+effects_latlon_0_20$lower <- effects_latlon_0_20$.estimate - 1.96 * effects_latlon_0_20$.se
+
+
+# Windown
+
+
+effects_days_0_20$upper <- effects_days_0_20$.estimate + 1.96 * effects_days_0_20$.se
+effects_days_0_20$lower <- effects_days_0_20$.estimate - 1.96 * effects_days_0_20$.se
+
+# DPD
+
+
+effects_dpd_0_20$upper <- effects_dpd_0_20$.estimate + 1.96 * effects_dpd_0_20$.se
+effects_dpd_0_20$lower <- effects_dpd_0_20$.estimate - 1.96 * effects_dpd_0_20$.se
+
+```
+
+#### Inverse link function
+
+##### Estimate
+
+```{r}
+effects_t2m_rh2m_0_20$estimate2 = (exp(effects_t2m_rh2m_0_20$.estimate) / (1 + exp(effects_t2m_rh2m_0_20$.estimate)))
+effects_t2m_max_0_20$estimate2 = (exp(effects_t2m_max_0_20$.estimate) / (1 + exp(effects_t2m_max_0_20$.estimate)))
+effects_t2m_min_0_20$estimate2 = (exp(effects_t2m_min_0_20$.estimate) / (1 + exp(effects_t2m_min_0_20$.estimate)))
+effects_latlon_0_20$estimate2 = (exp(effects_latlon_0_20$.estimate) / (1 + exp(effects_latlon_0_20$.estimate)))
+effects_days_0_20$estimate2 = (exp(effects_days_0_20$.estimate) / (1 + exp(effects_days_0_20$.estimate)))
+effects_PRECTOTCORR_0_20$estimate2 = (exp(effects_PRECTOTCORR_0_20$.estimate) / (1 + exp(effects_PRECTOTCORR_0_20$.estimate)))
+effects_dpd_0_20$estimate2 = (exp(effects_dpd_0_20$.estimate) / (1 + exp(effects_dpd_0_20$.estimate)))
+
+```
+
+##### Confidence interval
+
+```{r}
+effects_t2m_rh2m_0_20$upper = (exp(effects_t2m_rh2m_0_20$upper) / (1 + exp(effects_t2m_rh2m_0_20$upper)))
+effects_t2m_rh2m_0_20$lower = (exp(effects_t2m_rh2m_0_20$lower) / (1 + exp(effects_t2m_rh2m_0_20$lower)))
+effects_t2m_rh2m_0_20$.se = (exp(effects_t2m_rh2m_0_20$.se) / (1 + exp(effects_t2m_rh2m_0_20$.se)))
+
+effects_t2m_rh2m_0_20$.by = NULL
+effects_t2m_rh2m_0_20$.type = NULL
+effects_t2m_rh2m_0_20$.estimate = NULL
+effects_t2m_0_20 = effects_t2m_rh2m_0_20
+effects_rh2m_0_20 = effects_t2m_rh2m_0_20
+effects_t2m_0_20$.smooth = NULL
+effects_rh2m_0_20$.smooth = NULL
+
+effects_t2m_0_20$RH2M = NULL
+effects_t2m_0_20$variable = "T2M"
+
+effects_rh2m_0_20$T2M = NULL
+effects_rh2m_0_20$variable = "RH2M"
+
+colnames(effects_t2m_0_20) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_rh2m_0_20) = c("se", "value","upper","lower","effect","variable")
+
+
+
+effects_t2m_max_0_20$upper = (exp(effects_t2m_max_0_20$upper) / (1 + exp(effects_t2m_max_0_20$upper)))
+effects_t2m_max_0_20$lower = (exp(effects_t2m_max_0_20$lower) / (1 + exp(effects_t2m_max_0_20$lower)))
+effects_t2m_max_0_20$.se = (exp(effects_t2m_max_0_20$.se) / (1 + exp(effects_t2m_max_0_20$.se)))
+
+effects_t2m_max_0_20$.by = NULL
+effects_t2m_max_0_20$.type = NULL
+effects_t2m_max_0_20$.estimate = NULL
+effects_t2m_max_0_20$.smooth = NULL
+effects_t2m_max_0_20$variable = "T2M_MAX"
+
+colnames(effects_t2m_max_0_20) = c("se", "value","upper","lower","effect","variable")
+
+effects_t2m_min_0_20$upper = (exp(effects_t2m_min_0_20$upper) / (1 + exp(effects_t2m_min_0_20$upper)))
+effects_t2m_min_0_20$lower = (exp(effects_t2m_min_0_20$lower) / (1 + exp(effects_t2m_min_0_20$lower)))
+effects_t2m_min_0_20$.se = (exp(effects_t2m_min_0_20$.se) / (1 + exp(effects_t2m_min_0_20$.se)))
+
+effects_t2m_min_0_20$.by = NULL
+effects_t2m_min_0_20$.type = NULL
+effects_t2m_min_0_20$.estimate = NULL
+effects_t2m_min_0_20$.smooth = NULL
+effects_t2m_min_0_20$variable = "T2M_MIN"
+
+colnames(effects_t2m_min_0_20) = c("se", "value","upper","lower","effect","variable")
+
+effects_latlon_0_20$upper = (exp(effects_latlon_0_20$upper) / (1 + exp(effects_latlon_0_20$upper)))
+effects_latlon_0_20$lower = (exp(effects_latlon_0_20$lower) / (1 + exp(effects_latlon_0_20$lower)))
+effects_latlon_0_20$.se = (exp(effects_latlon_0_20$.se) / (1 + exp(effects_latlon_0_20$.se)))
+
+effects_latlon_0_20$.by = NULL
+effects_latlon_0_20$.type = NULL
+effects_latlon_0_20$.estimate = NULL
+effects_lat_0_20 = effects_latlon_0_20
+effects_lon_0_20 = effects_latlon_0_20
+effects_lat_0_20$.smooth = NULL
+effects_lon_0_20$.smooth = NULL
+
+effects_lat_0_20$lon = NULL
+effects_lat_0_20$variable = "Latitude"
+
+effects_lon_0_20$lat = NULL
+effects_lon_0_20$variable = "Longitude"
+
+colnames(effects_lat_0_20) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_lon_0_20) = c("se", "value","upper","lower","effect","variable")
+
+effects_days_0_20$upper = (exp(effects_days_0_20$upper) / (1 + exp(effects_days_0_20$upper)))
+effects_days_0_20$lower = (exp(effects_days_0_20$lower) / (1 + exp(effects_days_0_20$lower)))
+effects_days_0_20$.se = (exp(effects_days_0_20$.se) / (1 + exp(effects_days_0_20$.se)))
+
+effects_days_0_20$.by = NULL
+effects_days_0_20$.type = NULL
+effects_days_0_20$.estimate = NULL
+effects_days_0_20$.smooth = NULL
+effects_days_0_20$variable = "Days"
+
+colnames(effects_days_0_20) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_PRECTOTCORR_0_20$upper = (exp(effects_PRECTOTCORR_0_20$upper) / (1 + exp(effects_PRECTOTCORR_0_20$upper)))
+effects_PRECTOTCORR_0_20$lower = (exp(effects_PRECTOTCORR_0_20$lower) / (1 + exp(effects_PRECTOTCORR_0_20$lower)))
+effects_PRECTOTCORR_0_20$.se = (exp(effects_PRECTOTCORR_0_20$.se) / (1 + exp(effects_PRECTOTCORR_0_20$.se)))
+
+effects_PRECTOTCORR_0_20$.by = NULL
+effects_PRECTOTCORR_0_20$.type = NULL
+effects_PRECTOTCORR_0_20$.estimate = NULL
+effects_PRECTOTCORR_0_20$.smooth = NULL
+effects_PRECTOTCORR_0_20$variable = "Rain"
+
+colnames(effects_PRECTOTCORR_0_20) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_dpd_0_20$upper = (exp(effects_dpd_0_20$upper) / (1 + exp(effects_dpd_0_20$upper)))
+effects_dpd_0_20$lower = (exp(effects_dpd_0_20$lower) / (1 + exp(effects_dpd_0_20$lower)))
+effects_dpd_0_20$.se = (exp(effects_dpd_0_20$.se) / (1 + exp(effects_dpd_0_20$.se)))
+
+effects_dpd_0_20$.by = NULL
+effects_dpd_0_20$.type = NULL
+effects_dpd_0_20$.estimate = NULL
+effects_dpd_0_20$.smooth = NULL
+effects_dpd_0_20$variable = "DPD"
+
+colnames(effects_dpd_0_20) = c("se", "value","upper","lower","effect","variable")
+
+
+pf_0_20 = rbind(effects_t2m_0_20,effects_rh2m_0_20,effects_t2m_max_0_20,effects_t2m_min_0_20,
+           effects_lat_0_20,effects_lon_0_20,effects_days_0_20,effects_PRECTOTCORR_0_20,effects_dpd_0_20)
+
+pf_0_20 = as.data.frame(pf_0_20)
+pf_0_20
+unique(pf_0_20$variable)
+
+
+
+```
+
+```{r}
+pf_0_202 = pf_0_20 %>% 
+  group_by(variable) %>% 
+  summarise(
+    effect = mean(effect),
+    upper = mean(upper),
+    lower = mean(lower)
+  )
+
+pf_0_202 %>% 
+  ggplot(aes(variable, effect, group = variable))+
+geom_pointrange(aes(ymin = lower, ymax = upper))+
+  ggthemes::theme_few()
+```
+
+### Plotting
+
+```{r}
+library(ggplot2)
+library(patchwork)
+
+plot_list_0_20 <- pf_0_20 %>%
+  group_by(variable) %>%
+  group_split() %>%
+  lapply(function(df) {
+    ggplot(df, aes(x = value, y = effect)) +
+      geom_smooth(
+        method = "gam", formula = y ~ s(x, bs = "cr"), 
+        se = FALSE, color = "black", size = 1.5
+      ) +
+      geom_smooth(
+        aes(value, upper), se = FALSE, color = "black", 
+        size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+      ) +
+      geom_smooth(
+        aes(value, lower), se = FALSE, color = "black", 
+        size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+      ) +
+      #scale_y_continuous(n.breaks = 5, limits = c(0, 100))+
+      labs(x = unique(df$variable),
+        y = "Partial Effect"
+      ) +
+      theme_minimal() +
+      
+      theme(plot.title = element_text(hjust = 0.5),
+            text = element_text(size = 12, face = "bold"))
+  })
+
+# Combinar os gráficos
+combined_plot_0_20 <- wrap_plots(plot_list_0_20, ncol = 3)
+combined_plot_0_20
+
+ggsave("fig/partial_effect_0_20.png", dpi = 600, bg = "white", height = 6, width = 8)
+```
+
+### Prediction
+
+```{r}
+pred_0_20_pred = predict.gam(model_0_20,se.fit = T, type = "response")
+pred_0_20_pred = as.data.frame(pred_0_20_pred)
+
+
+pred_0_20_pred$T2M = wd_0_20$T2M
+pred_0_20_pred$RH2M = wd_0_20$RH2M
+pred_0_20_pred$T2M_MIN = wd_0_20$T2M_MIN
+pred_0_20_pred$T2M_MAX = wd_0_20$T2M_MAX
+pred_0_20_pred$days_difference = wd_0_20$days_difference
+pred_0_20_pred$PRECTOTCORR = wd_0_20$PRECTOTCORR
+pred_0_20_pred$lat = wd_0_20$lat
+pred_0_20_pred$lon = wd_0_20$lon
+pred_0_20_pred$DPD = wd_0_20$DPD
+
+set.seed(123)
+simu_0_20 <- simulate_gam(model_0_20, nsim = 100, value = "data.frame")
+
+
+
+simu_0_20_s <- simu_0_20 %>%
+  dplyr::group_by(id,days) %>%
+  summarise(
+    mean_sev = mean(sim.y, na.rm = TRUE),
+    T2M = mean(T2M, na.rm = TRUE),
+    T2M_MAX = mean(T2M_MAX, na.rm = TRUE),
+    T2M_MIN = mean(T2M_MIN, na.rm = TRUE),
+    RH2M = mean(RH2M, na.rm = TRUE),
+    PRECTOTCORR = mean(PRECTOTCORR, na.rm = TRUE),
+    DPD = mean(DPD, na.rm = TRUE),
+    lat = mean(lat, na.rm = TRUE),
+    lon = mean(lon, na.rm = TRUE),
+    days_difference = mean(days_difference, na.rm = TRUE),
+    up_95 = quantile(sim.y, 0.975),  
+    low_95 = quantile(sim.y, 0.025)
+    #se = sd(sim.y, na.rm = TRUE) / sqrt(n()),    
+    #max = max(sim.y, na.rm = TRUE),         
+    #min = min(sim.y, na.rm = TRUE)         
+  )
+
+simu_0_20_s_long <- simu_0_20_s %>%
+  pivot_longer(
+    cols = -c(id, days,up_95,low_95,mean_sev),  # Mantém apenas 'id' e 'days' fixos
+    names_to = "variables",  # Nome da nova coluna com os nomes das variáveis
+    values_to = "values"  # Nome da nova coluna com os valores correspondentes
+  )
+simu_0_20_s_long %>% 
+  #filter(!variables %in% c("lat","lon","days_difference","DPD")) %>% 
+  #filter(variables == "PRECTOTCORR") %>% 
+ggplot() +
+  
+  #geom_smooth(
+   # aes(x = PRECTOTCORR, y = sim.y, group = ii), se = FALSE, 
+  #  color = "grey", alpha = 0.09,
+   # method = "gam", formula = y ~ s(x, bs = "cr")
+  #) +
+ # geom_line(
+  #  data = simu_0_20,
+   # aes(x = T2M, y = sim.y, group = interaction(id, .sim)), 
+    #color = "grey", alpha = 0.1
+  #) +
+  geom_smooth(aes(x = values, y = mean_sev), 
+    se = FALSE, color = "black", size = 2, linetype = "solid",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  # Limite superior do intervalo de confiança
+  geom_smooth(aes(x = values, y = up_95), 
+    se = FALSE, color = "black", size = 1, linetype = "dashed",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  # Limite inferior do intervalo de confiança
+  geom_smooth(aes(x = values, y = low_95), 
+    se = FALSE, color = "black", size = 1, linetype = "dashed",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  ggthemes::theme_few()+
+  facet_wrap(~variables,scales = "free_x")+
+  scale_y_continuous(breaks = c(0,0.10,0.20,0.30,0.40,0.50),limits = c(0,0.50))
+
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork) # Para combinar os gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_0_20 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Criar um gráfico para cada variável
+  p <- pred_0_20_pred %>%
+    ggplot(aes_string(x = var, y = "fit*100")) + # aes_string para usar a variável dinamicamente
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2) +
+    theme_minimal() +
+    scale_y_continuous(n.breaks = 4, limits = c(0, 80))+
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_0_20[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_0_20 <- wrap_plots(g_0_20, ncol = 3) + 
+  plot_annotation(title = "Windows: 0-20")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_0_20.png", plot_0_20, width = 12, height = 10, dpi = 300)
+
+# Visualizar o gráfico combinado
+plot_0_20
+
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork)  # Para combinar gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_0_20 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Identificar os intervalos onde y_scaled >= 30
+  highlight_ranges <- pred_0_20_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    filter(y_scaled >= 30) %>%
+    summarise(
+      xmin = min(!!sym(var), na.rm = TRUE),
+      xmax = max(!!sym(var), na.rm = TRUE)
+    )
+  
+  # Criar o gráfico para a variável
+  p <- pred_0_20_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    ggplot(aes_string(x = var, y = "y_scaled")) +
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2.5) +
+    #scale_y_continuous(n.breaks = 4, limits = c(0, 80))+
+    
+    # Adicionar faixa cinza (se houver intervalo identificado)
+    { if (nrow(highlight_ranges) > 0) 
+        geom_rect(data = highlight_ranges, inherit.aes = FALSE,
+                  aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                  fill = "darkred", alpha = 0.3) 
+      else NULL } +
+    
+    ggthemes::theme_few() +
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_0_20[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_0_20 <- wrap_plots(g_0_20, ncol = 3) +
+  plot_annotation(title = "Windows: 0-20 (Severity > 30 Highlighted)")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_0_20_highlighted.png", plot_0_20, width = 8, height = 8, dpi = 600)
+
+# Visualizar o gráfico combinado
+print(plot_0_20)
+
+```
+
+## 20 to 40
+
+```{r}
+
+wd_20_40 = weather_data %>% 
+  dplyr::filter(days >= 20 & days <= 40)
+
+
+train_20_40 <- sample(1:nrow(wd_20_40), 0.95 * nrow(wd_20_40)) 
+  
+  
+  train_data_20_40 <- wd_20_40[train_20_40, ]
+  test_data_20_40 <- wd_20_40[-train_20_40, ]
+```
+
+```{r}
+model_20_40 = bam(
+ mean_sev~ s(T2M_MIN,bs='cr', k =60) + 
+           s(lat, lon, bs = "tp", k = 60) + 
+           s(days_difference, bs = "cr", k =60) +
+           s(T2M,RH2M, bs = 'tp', k =60) +
+           s(T2M_MAX, bs = "cr", k = 60) +
+           s(PRECTOTCORR, bs = "cr", k = 60) +
+           s(DPD, bs = "cr", k = 60),
+           family = betar(),
+           data = wd_20_40,
+           method = "fREML")
+
+gc()
+```
+
+```{r}
+summary(model_20_40)
+gam.check(model_20_40)
+AIC(model_20_40)
+BIC(model_20_40)
+```
+
+```{r}
+model_20_40_pf = gam(
+ mean_sev~ s(T2M_MIN,bs='cr', k =60) + s(lat, lon, bs = "tp", k = 60) + s(days_difference, bs = "cr", k =60) + s(T2M,RH2M, bs = 'tp', k =60) + s(T2M_MAX, bs = "cr", k = 60) + s(PRECTOTCORR, bs = "cr", k = 60) + s(DPD, bs = "cr", k = 60),
+  family = betar(),
+  data = train_data_20_40,
+  method = "REML")
+
+gc()
+
+
+pred_20_40 = predict.gam(model_20_40_pf, newdata = test_data_20_40, type = "response")
+pred_20_40 = as.data.frame(pred_20_40)
+test_data_20_40 = as.data.frame(test_data_20_40)
+CCC_20_40 <- epi.ccc(test_data_20_40$mean_sev, pred_20_40$pred_20_40)
+print(CCC_20_40$rho.c) 
+
+
+rhoc_20_40 <- CCC_20_40$rho.c   
+Cb_20_40  <- CCC_20_40$C.b     
+
+
+rho_20_40 <- rhoc_20_40 / Cb_20_40
+rho_20_40
+```
+
+### Partial effect
+
+#### Smooth estimation
+
+```{r}
+
+library(gratia)
+
+effects_days_20_40 <- smooth_estimates(model_20_40, smooth = "s(days_difference)")
+effects_t2m_max_20_40 <- smooth_estimates(model_20_40, smooth = "s(T2M_MAX)")
+effects_t2m_min_20_40 <- smooth_estimates(model_20_40, smooth = "s(T2M_MIN)")
+effects_latlon_20_40 <- smooth_estimates(model_20_40, smooth = "s(lat,lon)")
+effects_t2m_rh2m_20_40 <- smooth_estimates(model_20_40, smooth = "s(T2M,RH2M)")
+effects_dpd_20_40 <- smooth_estimates(model_20_40, smooth = "s(DPD)")
+effects_PRECTOTCORR_20_40 <- smooth_estimates(model_20_40, smooth = "s(PRECTOTCORR)")
+```
+
+#### Confidence interval
+
+```{r}
+
+# T2M/RH2M
+
+effects_t2m_rh2m_20_40$upper <- effects_t2m_rh2m_20_40$.estimate + 1.96 * effects_t2m_rh2m_20_40$.se  
+effects_t2m_rh2m_20_40$lower <- effects_t2m_rh2m_20_40$.estimate - 1.96 * effects_t2m_rh2m_20_40$.se 
+
+# T2M MAX
+
+effects_t2m_max_20_40$upper <- effects_t2m_max_20_40$.estimate + 1.96 * effects_t2m_max_20_40$.se 
+effects_t2m_max_20_40$lower <- effects_t2m_max_20_40$.estimate - 1.96 * effects_t2m_max_20_40$.se  
+
+# T2M MIN
+
+effects_t2m_min_20_40$upper <- effects_t2m_min_20_40$.estimate + 1.96 * effects_t2m_min_20_40$.se 
+effects_t2m_min_20_40$lower <- effects_t2m_min_20_40$.estimate - 1.96 * effects_t2m_min_20_40$.se
+
+# Rain
+
+effects_PRECTOTCORR_20_40$upper <- effects_PRECTOTCORR_20_40$.estimate + 1.96 * effects_PRECTOTCORR_20_40$.se 
+effects_PRECTOTCORR_20_40$lower <- effects_PRECTOTCORR_20_40$.estimate - 1.96 * effects_PRECTOTCORR_20_40$.se
+
+
+# Lat / Lon
+
+effects_latlon_20_40$upper <- effects_latlon_20_40$.estimate + 1.96 * effects_latlon_20_40$.se 
+effects_latlon_20_40$lower <- effects_latlon_20_40$.estimate - 1.96 * effects_latlon_20_40$.se
+
+
+# Windown
+
+
+effects_days_20_40$upper <- effects_days_20_40$.estimate + 1.96 * effects_days_20_40$.se
+effects_days_20_40$lower <- effects_days_20_40$.estimate - 1.96 * effects_days_20_40$.se
+
+# DPD
+
+
+effects_dpd_20_40$upper <- effects_dpd_20_40$.estimate + 1.96 * effects_dpd_20_40$.se
+effects_dpd_20_40$lower <- effects_dpd_20_40$.estimate - 1.96 * effects_dpd_20_40$.se
+
+```
+
+#### Inverse link function
+
+##### Estimate
+
+```{r}
+effects_t2m_rh2m_20_40$estimate2 = (exp(effects_t2m_rh2m_20_40$.estimate) / (1 + exp(effects_t2m_rh2m_20_40$.estimate)))
+effects_t2m_max_20_40$estimate2 = (exp(effects_t2m_max_20_40$.estimate) / (1 + exp(effects_t2m_max_20_40$.estimate)))
+effects_t2m_min_20_40$estimate2 = (exp(effects_t2m_min_20_40$.estimate) / (1 + exp(effects_t2m_min_20_40$.estimate)))
+effects_latlon_20_40$estimate2 = (exp(effects_latlon_20_40$.estimate) / (1 + exp(effects_latlon_20_40$.estimate)))
+effects_days_20_40$estimate2 = (exp(effects_days_20_40$.estimate) / (1 + exp(effects_days_20_40$.estimate)))
+effects_PRECTOTCORR_20_40$estimate2 = (exp(effects_PRECTOTCORR_20_40$.estimate) / (1 + exp(effects_PRECTOTCORR_20_40$.estimate)))
+effects_dpd_20_40$estimate2 = (exp(effects_dpd_20_40$.estimate) / (1 + exp(effects_dpd_20_40$.estimate)))
+
+```
+
+##### Confidence interval
+
+```{r}
+effects_t2m_rh2m_20_40$upper = (exp(effects_t2m_rh2m_20_40$upper) / (1 + exp(effects_t2m_rh2m_20_40$upper)))
+effects_t2m_rh2m_20_40$lower = (exp(effects_t2m_rh2m_20_40$lower) / (1 + exp(effects_t2m_rh2m_20_40$lower)))
+effects_t2m_rh2m_20_40$.se = (exp(effects_t2m_rh2m_20_40$.se) / (1 + exp(effects_t2m_rh2m_20_40$.se)))
+
+effects_t2m_rh2m_20_40$.by = NULL
+effects_t2m_rh2m_20_40$.type = NULL
+effects_t2m_rh2m_20_40$.estimate = NULL
+effects_t2m_20_40 = effects_t2m_rh2m_20_40
+effects_rh2m_20_40 = effects_t2m_rh2m_20_40
+effects_t2m_20_40$.smooth = NULL
+effects_rh2m_20_40$.smooth = NULL
+
+effects_t2m_20_40$RH2M = NULL
+effects_t2m_20_40$variable = "T2M"
+
+effects_rh2m_20_40$T2M = NULL
+effects_rh2m_20_40$variable = "RH2M"
+
+colnames(effects_t2m_20_40) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_rh2m_20_40) = c("se", "value","upper","lower","effect","variable")
+
+
+
+effects_t2m_max_20_40$upper = (exp(effects_t2m_max_20_40$upper) / (1 + exp(effects_t2m_max_20_40$upper)))
+effects_t2m_max_20_40$lower = (exp(effects_t2m_max_20_40$lower) / (1 + exp(effects_t2m_max_20_40$lower)))
+effects_t2m_max_20_40$.se = (exp(effects_t2m_max_20_40$.se) / (1 + exp(effects_t2m_max_20_40$.se)))
+
+effects_t2m_max_20_40$.by = NULL
+effects_t2m_max_20_40$.type = NULL
+effects_t2m_max_20_40$.estimate = NULL
+effects_t2m_max_20_40$.smooth = NULL
+effects_t2m_max_20_40$variable = "T2M_MAX"
+
+colnames(effects_t2m_max_20_40) = c("se", "value","upper","lower","effect","variable")
+
+effects_t2m_min_20_40$upper = (exp(effects_t2m_min_20_40$upper) / (1 + exp(effects_t2m_min_20_40$upper)))
+effects_t2m_min_20_40$lower = (exp(effects_t2m_min_20_40$lower) / (1 + exp(effects_t2m_min_20_40$lower)))
+effects_t2m_min_20_40$.se = (exp(effects_t2m_min_20_40$.se) / (1 + exp(effects_t2m_min_20_40$.se)))
+
+effects_t2m_min_20_40$.by = NULL
+effects_t2m_min_20_40$.type = NULL
+effects_t2m_min_20_40$.estimate = NULL
+effects_t2m_min_20_40$.smooth = NULL
+effects_t2m_min_20_40$variable = "T2M_MIN"
+
+colnames(effects_t2m_min_20_40) = c("se", "value","upper","lower","effect","variable")
+
+effects_latlon_20_40$upper = (exp(effects_latlon_20_40$upper) / (1 + exp(effects_latlon_20_40$upper)))
+effects_latlon_20_40$lower = (exp(effects_latlon_20_40$lower) / (1 + exp(effects_latlon_20_40$lower)))
+effects_latlon_20_40$.se = (exp(effects_latlon_20_40$.se) / (1 + exp(effects_latlon_20_40$.se)))
+
+effects_latlon_20_40$.by = NULL
+effects_latlon_20_40$.type = NULL
+effects_latlon_20_40$.estimate = NULL
+effects_lat_20_40 = effects_latlon_20_40
+effects_lon_20_40 = effects_latlon_20_40
+effects_lat_20_40$.smooth = NULL
+effects_lon_20_40$.smooth = NULL
+
+effects_lat_20_40$lon = NULL
+effects_lat_20_40$variable = "Latitude"
+
+effects_lon_20_40$lat = NULL
+effects_lon_20_40$variable = "Longitude"
+
+colnames(effects_lat_20_40) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_lon_20_40) = c("se", "value","upper","lower","effect","variable")
+
+effects_days_20_40$upper = (exp(effects_days_20_40$upper) / (1 + exp(effects_days_20_40$upper)))
+effects_days_20_40$lower = (exp(effects_days_20_40$lower) / (1 + exp(effects_days_20_40$lower)))
+effects_days_20_40$.se = (exp(effects_days_20_40$.se) / (1 + exp(effects_days_20_40$.se)))
+
+effects_days_20_40$.by = NULL
+effects_days_20_40$.type = NULL
+effects_days_20_40$.estimate = NULL
+effects_days_20_40$.smooth = NULL
+effects_days_20_40$variable = "Days"
+
+colnames(effects_days_20_40) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_PRECTOTCORR_20_40$upper = (exp(effects_PRECTOTCORR_20_40$upper) / (1 + exp(effects_PRECTOTCORR_20_40$upper)))
+effects_PRECTOTCORR_20_40$lower = (exp(effects_PRECTOTCORR_20_40$lower) / (1 + exp(effects_PRECTOTCORR_20_40$lower)))
+effects_PRECTOTCORR_20_40$.se = (exp(effects_PRECTOTCORR_20_40$.se) / (1 + exp(effects_PRECTOTCORR_20_40$.se)))
+
+effects_PRECTOTCORR_20_40$.by = NULL
+effects_PRECTOTCORR_20_40$.type = NULL
+effects_PRECTOTCORR_20_40$.estimate = NULL
+effects_PRECTOTCORR_20_40$.smooth = NULL
+effects_PRECTOTCORR_20_40$variable = "Rain"
+
+colnames(effects_PRECTOTCORR_20_40) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_dpd_20_40$upper = (exp(effects_dpd_20_40$upper) / (1 + exp(effects_dpd_20_40$upper)))
+effects_dpd_20_40$lower = (exp(effects_dpd_20_40$lower) / (1 + exp(effects_dpd_20_40$lower)))
+effects_dpd_20_40$.se = (exp(effects_dpd_20_40$.se) / (1 + exp(effects_dpd_20_40$.se)))
+
+effects_dpd_20_40$.by = NULL
+effects_dpd_20_40$.type = NULL
+effects_dpd_20_40$.estimate = NULL
+effects_dpd_20_40$.smooth = NULL
+effects_dpd_20_40$variable = "DPD"
+
+colnames(effects_dpd_20_40) = c("se", "value","upper","lower","effect","variable")
+
+
+pf_20_40 = rbind(effects_t2m_20_40,effects_rh2m_20_40,effects_t2m_max_20_40,effects_t2m_min_20_40,
+           effects_lat_20_40,effects_lon_20_40,effects_days_20_40,effects_PRECTOTCORR_20_40,effects_dpd_20_40)
+
+```
+
+```{r}
+pf_20_402 = pf_20_40 %>% 
+  group_by(variable) %>% 
+  summarise(
+    effect = mean(effect),
+    upper = mean(upper),
+    lower = mean(lower)
+  )
+
+pf_20_402 %>% 
+  ggplot(aes(variable, effect, group = variable))+
+geom_pointrange(aes(ymin = lower, ymax = upper))+
+  ggthemes::theme_few()
+```
+
+### Plotting
+
+```{r}
+library(ggplot2)
+library(patchwork)
+
+plot_list_20_40 <- pf_20_40 %>%
+  group_by(variable) %>%
+  group_split() %>%
+  lapply(function(df) {
+    ggplot(df, aes(x = value, y = effect)) +
+      geom_smooth(
+        method = "gam", formula = y ~ s(x, bs = "cr"), 
+        se = FALSE, color = "black", size = 1.5
+      ) +
+      #geom_smooth(
+      #  aes(value, upper), se = FALSE, color = "black", 
+       # size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+    #  ) +
+     # geom_smooth(
+      #  aes(value, lower), se = FALSE, color = "black", 
+       # size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+      #) +
+      labs(x = unique(df$variable),
+        y = "Partial Effect"
+      ) +
+      theme_minimal() +
+      
+      theme(plot.title = element_text(hjust = 0.5),
+            text = element_text(size = 12, face = "bold"))
+  })
+
+# Combinar os gráficos
+combined_plot_20_40 <- wrap_plots(plot_list_20_40, ncol = 3)
+combined_plot_20_40
+
+ggsave("fig/partial_effect_20_40.png", dpi = 600, bg = "white", height = 6, width = 8)
+```
+
+### Prediction
+
+```{r}
+pred_20_40_pred = predict.gam(model_20_40,se.fit = T, type = "response")
+pred_20_40_pred = as.data.frame(pred_20_40_pred)
+
+
+pred_20_40_pred$T2M = wd_20_40$T2M
+pred_20_40_pred$RH2M = wd_20_40$RH2M
+pred_20_40_pred$T2M_MIN = wd_20_40$T2M_MIN
+pred_20_40_pred$T2M_MAX = wd_20_40$T2M_MAX
+pred_20_40_pred$days_difference = wd_20_40$days_difference
+pred_20_40_pred$PRECTOTCORR = wd_20_40$PRECTOTCORR
+pred_20_40_pred$lat = wd_20_40$lat
+pred_20_40_pred$lon = wd_20_40$lon
+pred_20_40_pred$DPD = wd_20_40$DPD
+
+gc()
+
+set.seed(123)
+simu_20_40 <- simulate_gam(model_20_40, nsim = 100, value = "data.frame")
+
+
+
+simu_20_40_s <- simu_20_40 %>%
+  dplyr::group_by(id,days) %>%
+  summarise(
+    mean_sev = mean(sim.y, na.rm = TRUE),
+    T2M = mean(T2M, na.rm = TRUE),
+    T2M_MAX = mean(T2M_MAX, na.rm = TRUE),
+    T2M_MIN = mean(T2M_MIN, na.rm = TRUE),
+    RH2M = mean(RH2M, na.rm = TRUE),
+    PRECTOTCORR = mean(PRECTOTCORR, na.rm = TRUE),
+    DPD = mean(DPD, na.rm = TRUE),
+    lat = mean(lat, na.rm = TRUE),
+    lon = mean(lon, na.rm = TRUE),
+    days_difference = mean(days_difference, na.rm = TRUE),
+    up_95 = quantile(sim.y, 0.975),  
+    low_95 = quantile(sim.y, 0.025)
+    #se = sd(sim.y, na.rm = TRUE) / sqrt(n()),    
+    #max = max(sim.y, na.rm = TRUE),         
+    #min = min(sim.y, na.rm = TRUE)         
+  )
+
+simu_20_40_s_long <- simu_20_40_s %>%
+  pivot_longer(
+    cols = -c(id, days,up_95,low_95,mean_sev),  # Mantém apenas 'id' e 'days' fixos
+    names_to = "variables",  # Nome da nova coluna com os nomes das variáveis
+    values_to = "values"  # Nome da nova coluna com os valores correspondentes
+  )
+
+simu_20_40_s_long %>% 
+ggplot() +
+  
+  #geom_smooth(
+   # aes(x = PRECTOTCORR, y = sim.y, group = ii), se = FALSE, 
+  #  color = "grey", alpha = 0.09,
+   # method = "gam", formula = y ~ s(x, bs = "cr")
+  #) +
+ # geom_line(
+  #  data = simu_0_20,
+   # aes(x = T2M, y = sim.y, group = interaction(id, .sim)), 
+    #color = "grey", alpha = 0.1
+  #) +
+  geom_smooth(aes(x = values, y = mean_sev), 
+    se = FALSE, color = "black", size = 2, linetype = "solid",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  # Limite superior do intervalo de confiança
+  geom_smooth(aes(x = values, y = up_95), 
+    se = FALSE, color = "black", size = 1, linetype = "dashed",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  # Limite inferior do intervalo de confiança
+  geom_smooth(aes(x = values, y = low_95), 
+    se = FALSE, color = "black", size = 1, linetype = "dashed",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  ggthemes::theme_few()+
+  facet_wrap(~variables,scales = "free_x")#+
+  #scale_y_continuous(breaks = c(0,0.10,0.20,0.30,0.40,0.50),limits = c(0,0.50))
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork) # Para combinar os gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_20_40 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Criar um gráfico para cada variável
+  p <- pred_20_40_pred %>%
+    ggplot(aes_string(x = var, y = "fit*100")) + # aes_string para usar a variável dinamicamente
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2) +
+    theme_minimal() +
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_20_40[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_20_40 <- wrap_plots(g_20_40, ncol = 3) + 
+  plot_annotation(title = "Windows: 20-40")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_20_40.png", plot_20_40, width = 12, height = 10, dpi = 300)
+
+# Visualizar o gráfico combinado
+plot_20_40
+
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork)  # Para combinar gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_20_40 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Identificar os intervalos onde y_scaled >= 30
+  highlight_ranges <- pred_20_40_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    filter(y_scaled >= 30) %>%
+    summarise(
+      xmin = min(!!sym(var), na.rm = TRUE),
+      xmax = max(!!sym(var), na.rm = TRUE)
+    )
+  
+  # Criar o gráfico para a variável
+  p <- pred_20_40_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    ggplot(aes_string(x = var, y = "y_scaled")) +
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2.5) +
+    
+    # Adicionar faixa cinza (se houver intervalo identificado)
+    { if (nrow(highlight_ranges) > 0) 
+        geom_rect(data = highlight_ranges, inherit.aes = FALSE,
+                  aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                  fill = "darkred", alpha = 0.3) 
+      else NULL } +
+    
+    ggthemes::theme_few() +
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_20_40[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_20_40 <- wrap_plots(g_20_40, ncol = 3) +
+  plot_annotation(title = "Windows: 20-40 (Severity > 30 Highlighted)")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_20_40_highlighted.png", plot_20_40, width = 8, height = 8, dpi = 600)
+
+# Visualizar o gráfico combinado
+print(plot_20_40)
+
+```
+
+## 40 to 60
+
+```{r}
+
+wd_40_60 = weather_data %>% 
+  dplyr::filter(days >= 40 & days <= 60)
+
+
+train_40_60 <- sample(1:nrow(wd_40_60), 0.95 * nrow(wd_40_60)) 
+  
+  
+  train_data_40_60 <- wd_40_60[train_40_60, ]
+  test_data_40_60 <- wd_40_60[-train_40_60, ]
+```
+
+```{r}
+model_40_60 = bam(
+ mean_sev~ s(T2M_MIN,bs='cr', k =60) + 
+           s(lat, lon, bs = "tp", k = 60) + 
+           s(days_difference, bs = "cr", k =60) +
+           s(T2M,RH2M, bs = 'tp', k =60) +
+           s(T2M_MAX, bs = "cr", k = 60) +
+           s(PRECTOTCORR, bs = "cr", k = 60) +
+           s(DPD, bs = "cr", k = 60),
+           family = betar(),
+          data = wd_40_60,
+          method = "fREML")
+
+
+
+gc()
+```
+
+```{r}
+summary(model_40_60)
+gam.check(model_40_60)
+AIC(model_40_60)
+BIC(model_40_60)
+```
+
+```{r}
+model_40_60_pf = gam(
+ mean_sev~ s(T2M_MIN,bs='cr', k =60) +
+           s(lat, lon, bs = "tp", k = 60)+
+           s(days_difference, bs = "cr", k =60)+
+           s(T2M,RH2M, bs = 'tp', k =60)+ 
+           s(T2M_MAX, bs = "cr", k = 60)+
+           s(PRECTOTCORR, bs = "cr", k = 60)+
+           s(DPD, bs = "cr", k = 60),
+          family = betar(),
+  data = train_data_40_60,
+  method = "REML")
+
+gc()
+
+
+pred_40_60 = predict.gam(model_40_60_pf, newdata = test_data_40_60, type = "response")
+pred_40_60 = as.data.frame(pred_40_60)
+test_data_40_60 = as.data.frame(test_data_40_60)
+CCC_40_60 <- epi.ccc(test_data_40_60$mean_sev, pred_40_60$pred_40_60)
+print(CCC_40_60$rho.c) 
+
+
+rhoc_40_60 <- CCC_40_60$rho.c   
+Cb_40_60  <- CCC_40_60$C.b     
+
+
+rho_40_60 <- rhoc_40_60 / Cb_40_60
+rho_40_60
+
+test_data_40_60$pred = pred_40_60$pred_40_60
+
+test_data_40_60 %>% 
+  ggplot(aes(mean_sev, pred))+
+  geom_point()
+```
+
+### Partial effect
+
+#### Smooth estimation
+
+```{r}
+
+library(gratia)
+
+effects_days_40_60 <- smooth_estimates(model_40_60, smooth = "s(days_difference)")
+effects_t2m_max_40_60 <- smooth_estimates(model_40_60, smooth = "s(T2M_MAX)")
+effects_t2m_min_40_60 <- smooth_estimates(model_40_60, smooth = "s(T2M_MIN)")
+effects_latlon_40_60 <- smooth_estimates(model_40_60, smooth = "s(lat,lon)")
+effects_t2m_rh2m_40_60 <- smooth_estimates(model_40_60, smooth = "s(T2M,RH2M)")
+effects_dpd_40_60 <- smooth_estimates(model_40_60, smooth = "s(DPD)")
+effects_PRECTOTCORR_40_60 <- smooth_estimates(model_40_60, smooth = "s(PRECTOTCORR)")
+```
+
+#### Confidence interval
+
+```{r}
+
+# T2M/RH2M
+
+effects_t2m_rh2m_40_60$upper <- effects_t2m_rh2m_40_60$.estimate + 1.96 * effects_t2m_rh2m_40_60$.se  
+effects_t2m_rh2m_40_60$lower <- effects_t2m_rh2m_40_60$.estimate - 1.96 * effects_t2m_rh2m_40_60$.se 
+
+# T2M MAX
+
+effects_t2m_max_40_60$upper <- effects_t2m_max_40_60$.estimate + 1.96 * effects_t2m_max_40_60$.se 
+effects_t2m_max_40_60$lower <- effects_t2m_max_40_60$.estimate - 1.96 * effects_t2m_max_40_60$.se  
+
+# T2M MIN
+
+effects_t2m_min_40_60$upper <- effects_t2m_min_40_60$.estimate + 1.96 * effects_t2m_min_40_60$.se 
+effects_t2m_min_40_60$lower <- effects_t2m_min_40_60$.estimate - 1.96 * effects_t2m_min_40_60$.se
+
+# Rain
+
+effects_PRECTOTCORR_40_60$upper <- effects_PRECTOTCORR_40_60$.estimate + 1.96 * effects_PRECTOTCORR_40_60$.se 
+effects_PRECTOTCORR_40_60$lower <- effects_PRECTOTCORR_40_60$.estimate - 1.96 * effects_PRECTOTCORR_40_60$.se
+
+
+# Lat / Lon
+
+effects_latlon_40_60$upper <- effects_latlon_40_60$.estimate + 1.96 * effects_latlon_40_60$.se 
+effects_latlon_40_60$lower <- effects_latlon_40_60$.estimate - 1.96 * effects_latlon_40_60$.se
+
+
+# Windown
+
+
+effects_days_40_60$upper <- effects_days_40_60$.estimate + 1.96 * effects_days_40_60$.se
+effects_days_40_60$lower <- effects_days_40_60$.estimate - 1.96 * effects_days_40_60$.se
+
+# DPD
+
+
+effects_dpd_40_60$upper <- effects_dpd_40_60$.estimate + 1.96 * effects_dpd_40_60$.se
+effects_dpd_40_60$lower <- effects_dpd_40_60$.estimate - 1.96 * effects_dpd_40_60$.se
+
+```
+
+#### Inverse link function
+
+##### Estimate
+
+```{r}
+effects_t2m_rh2m_40_60$estimate2 = (exp(effects_t2m_rh2m_40_60$.estimate) / (1 + exp(effects_t2m_rh2m_40_60$.estimate)))
+effects_t2m_max_40_60$estimate2 = (exp(effects_t2m_max_40_60$.estimate) / (1 + exp(effects_t2m_max_40_60$.estimate)))
+effects_t2m_min_40_60$estimate2 = (exp(effects_t2m_min_40_60$.estimate) / (1 + exp(effects_t2m_min_40_60$.estimate)))
+effects_latlon_40_60$estimate2 = (exp(effects_latlon_40_60$.estimate) / (1 + exp(effects_latlon_40_60$.estimate)))
+effects_days_40_60$estimate2 = (exp(effects_days_40_60$.estimate) / (1 + exp(effects_days_40_60$.estimate)))
+effects_PRECTOTCORR_40_60$estimate2 = (exp(effects_PRECTOTCORR_40_60$.estimate) / (1 + exp(effects_PRECTOTCORR_40_60$.estimate)))
+effects_dpd_40_60$estimate2 = (exp(effects_dpd_40_60$.estimate) / (1 + exp(effects_dpd_40_60$.estimate)))
+
+```
+
+##### Confidence interval
+
+```{r}
+effects_t2m_rh2m_40_60$upper = (exp(effects_t2m_rh2m_40_60$upper) / (1 + exp(effects_t2m_rh2m_40_60$upper)))
+effects_t2m_rh2m_40_60$lower = (exp(effects_t2m_rh2m_40_60$lower) / (1 + exp(effects_t2m_rh2m_40_60$lower)))
+effects_t2m_rh2m_40_60$.se = (exp(effects_t2m_rh2m_40_60$.se) / (1 + exp(effects_t2m_rh2m_40_60$.se)))
+
+effects_t2m_rh2m_40_60$.by = NULL
+effects_t2m_rh2m_40_60$.type = NULL
+effects_t2m_rh2m_40_60$.estimate = NULL
+effects_t2m_40_60 = effects_t2m_rh2m_40_60
+effects_rh2m_40_60 = effects_t2m_rh2m_40_60
+effects_t2m_40_60$.smooth = NULL
+effects_rh2m_40_60$.smooth = NULL
+
+effects_t2m_40_60$RH2M = NULL
+effects_t2m_40_60$variable = "T2M"
+
+effects_rh2m_40_60$T2M = NULL
+effects_rh2m_40_60$variable = "RH2M"
+
+colnames(effects_t2m_40_60) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_rh2m_40_60) = c("se", "value","upper","lower","effect","variable")
+
+
+
+effects_t2m_max_40_60$upper = (exp(effects_t2m_max_40_60$upper) / (1 + exp(effects_t2m_max_40_60$upper)))
+effects_t2m_max_40_60$lower = (exp(effects_t2m_max_40_60$lower) / (1 + exp(effects_t2m_max_40_60$lower)))
+effects_t2m_max_40_60$.se = (exp(effects_t2m_max_40_60$.se) / (1 + exp(effects_t2m_max_40_60$.se)))
+
+effects_t2m_max_40_60$.by = NULL
+effects_t2m_max_40_60$.type = NULL
+effects_t2m_max_40_60$.estimate = NULL
+effects_t2m_max_40_60$.smooth = NULL
+effects_t2m_max_40_60$variable = "T2M_MAX"
+
+colnames(effects_t2m_max_40_60) = c("se", "value","upper","lower","effect","variable")
+
+effects_t2m_min_40_60$upper = (exp(effects_t2m_min_40_60$upper) / (1 + exp(effects_t2m_min_40_60$upper)))
+effects_t2m_min_40_60$lower = (exp(effects_t2m_min_40_60$lower) / (1 + exp(effects_t2m_min_40_60$lower)))
+effects_t2m_min_40_60$.se = (exp(effects_t2m_min_40_60$.se) / (1 + exp(effects_t2m_min_40_60$.se)))
+
+effects_t2m_min_40_60$.by = NULL
+effects_t2m_min_40_60$.type = NULL
+effects_t2m_min_40_60$.estimate = NULL
+effects_t2m_min_40_60$.smooth = NULL
+effects_t2m_min_40_60$variable = "T2M_MIN"
+
+colnames(effects_t2m_min_40_60) = c("se", "value","upper","lower","effect","variable")
+
+effects_latlon_40_60$upper = (exp(effects_latlon_40_60$upper) / (1 + exp(effects_latlon_40_60$upper)))
+effects_latlon_40_60$lower = (exp(effects_latlon_40_60$lower) / (1 + exp(effects_latlon_40_60$lower)))
+effects_latlon_40_60$.se = (exp(effects_latlon_40_60$.se) / (1 + exp(effects_latlon_40_60$.se)))
+
+effects_latlon_40_60$.by = NULL
+effects_latlon_40_60$.type = NULL
+effects_latlon_40_60$.estimate = NULL
+effects_lat_40_60 = effects_latlon_40_60
+effects_lon_40_60 = effects_latlon_40_60
+effects_lat_40_60$.smooth = NULL
+effects_lon_40_60$.smooth = NULL
+
+effects_lat_40_60$lon = NULL
+effects_lat_40_60$variable = "Latitude"
+
+effects_lon_40_60$lat = NULL
+effects_lon_40_60$variable = "Longitude"
+
+colnames(effects_lat_40_60) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_lon_40_60) = c("se", "value","upper","lower","effect","variable")
+
+effects_days_40_60$upper = (exp(effects_days_40_60$upper) / (1 + exp(effects_days_40_60$upper)))
+effects_days_40_60$lower = (exp(effects_days_40_60$lower) / (1 + exp(effects_days_40_60$lower)))
+effects_days_40_60$.se = (exp(effects_days_40_60$.se) / (1 + exp(effects_days_40_60$.se)))
+
+effects_days_40_60$.by = NULL
+effects_days_40_60$.type = NULL
+effects_days_40_60$.estimate = NULL
+effects_days_40_60$.smooth = NULL
+effects_days_40_60$variable = "Days"
+
+colnames(effects_days_40_60) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_PRECTOTCORR_40_60$upper = (exp(effects_PRECTOTCORR_40_60$upper) / (1 + exp(effects_PRECTOTCORR_40_60$upper)))
+effects_PRECTOTCORR_40_60$lower = (exp(effects_PRECTOTCORR_40_60$lower) / (1 + exp(effects_PRECTOTCORR_40_60$lower)))
+effects_PRECTOTCORR_40_60$.se = (exp(effects_PRECTOTCORR_40_60$.se) / (1 + exp(effects_PRECTOTCORR_40_60$.se)))
+
+effects_PRECTOTCORR_40_60$.by = NULL
+effects_PRECTOTCORR_40_60$.type = NULL
+effects_PRECTOTCORR_40_60$.estimate = NULL
+effects_PRECTOTCORR_40_60$.smooth = NULL
+effects_PRECTOTCORR_40_60$variable = "Rain"
+
+colnames(effects_PRECTOTCORR_40_60) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_dpd_40_60$upper = (exp(effects_dpd_40_60$upper) / (1 + exp(effects_dpd_40_60$upper)))
+effects_dpd_40_60$lower = (exp(effects_dpd_40_60$lower) / (1 + exp(effects_dpd_40_60$lower)))
+effects_dpd_40_60$.se = (exp(effects_dpd_40_60$.se) / (1 + exp(effects_dpd_40_60$.se)))
+
+effects_dpd_40_60$.by = NULL
+effects_dpd_40_60$.type = NULL
+effects_dpd_40_60$.estimate = NULL
+effects_dpd_40_60$.smooth = NULL
+effects_dpd_40_60$variable = "DPD"
+
+colnames(effects_dpd_40_60) = c("se", "value","upper","lower","effect","variable")
+
+
+pf_40_60 = rbind(effects_t2m_40_60,effects_rh2m_40_60,effects_t2m_max_40_60,effects_t2m_min_40_60,
+           effects_lat_40_60,effects_lon_40_60,effects_days_40_60,effects_PRECTOTCORR_40_60,effects_dpd_40_60)
+
+```
+
+```{r}
+pf_40_602 = pf_40_60 %>% 
+  group_by(variable) %>% 
+  summarise(
+    effect = mean(effect),
+    upper = mean(upper),
+    lower = mean(lower)
+  )
+
+pf_40_602 %>% 
+  ggplot(aes(variable, effect, group = variable))+
+geom_pointrange(aes(ymin = lower, ymax = upper))+
+  ggthemes::theme_few()
+```
+
+### Plotting
+
+```{r}
+library(ggplot2)
+library(patchwork)
+
+plot_list_40_60 <- pf_40_60 %>%
+  group_by(variable) %>%
+  group_split() %>%
+  lapply(function(df) {
+    ggplot(df, aes(x = value, y = effect)) +
+      geom_smooth(
+        method = "gam", formula = y ~ s(x, bs = "cr"), 
+        se = FALSE, color = "black", size = 1.5
+      ) +
+     # geom_smooth(
+      #  aes(value, upper), se = FALSE, color = "black", 
+       # size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+      #) +
+      #geom_smooth(
+       # aes(value, lower), se = FALSE, color = "black", 
+        #size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+      #) +
+      labs(x = unique(df$variable),
+        y = "Partial Effect"
+      ) +
+      theme_minimal() +
+      
+      theme(plot.title = element_text(hjust = 0.5),
+            text = element_text(size = 12, face = "bold"))
+  })
+
+# Combinar os gráficos
+combined_plot_40_60 <- wrap_plots(plot_list_40_60, ncol = 3)
+combined_plot_40_60
+
+ggsave("fig/partial_effect_40_60.png", dpi = 600, bg = "white", height = 6, width = 8)
+```
+
+### Prediction
+
+```{r}
+pred_40_60_pred = predict.gam(model_40_60,se.fit = T, type = "response")
+pred_40_60_pred = as.data.frame(pred_40_60_pred)
+
+
+pred_40_60_pred$T2M = wd_40_60$T2M
+pred_40_60_pred$RH2M = wd_40_60$RH2M
+pred_40_60_pred$T2M_MIN = wd_40_60$T2M_MIN
+pred_40_60_pred$T2M_MAX = wd_40_60$T2M_MAX
+pred_40_60_pred$days_difference = wd_40_60$days_difference
+pred_40_60_pred$PRECTOTCORR = wd_40_60$PRECTOTCORR
+pred_40_60_pred$lat = wd_40_60$lat
+pred_40_60_pred$lon = wd_40_60$lon
+pred_40_60_pred$DPD = wd_40_60$DPD
+
+gc()
+
+
+set.seed(123)
+simu_40_60 <- simulate_gam(model_40_60, nsim = 100, value = "data.frame")
+
+
+
+simu_40_60_s <- simu_40_60 %>%
+  dplyr::group_by(id,days) %>%
+  summarise(
+    mean_sev = mean(sim.y, na.rm = TRUE),
+    T2M = mean(T2M, na.rm = TRUE),
+    T2M_MAX = mean(T2M_MAX, na.rm = TRUE),
+    T2M_MIN = mean(T2M_MIN, na.rm = TRUE),
+    RH2M = mean(RH2M, na.rm = TRUE),
+    PRECTOTCORR = mean(PRECTOTCORR, na.rm = TRUE),
+    DPD = mean(DPD, na.rm = TRUE),
+    lat = mean(lat, na.rm = TRUE),
+    lon = mean(lon, na.rm = TRUE),
+    days_difference = mean(days_difference, na.rm = TRUE),
+    up_95 = quantile(sim.y, 0.975),  
+    low_95 = quantile(sim.y, 0.025)
+    #se = sd(sim.y, na.rm = TRUE) / sqrt(n()),    
+    #max = max(sim.y, na.rm = TRUE),         
+    #min = min(sim.y, na.rm = TRUE)         
+  )
+
+
+simu_40_60_s_long <- simu_40_60_s %>%
+  pivot_longer(
+    cols = -c(id, days,up_95,low_95,mean_sev),  # Mantém apenas 'id' e 'days' fixos
+    names_to = "variables",  # Nome da nova coluna com os nomes das variáveis
+    values_to = "values"  # Nome da nova coluna com os valores correspondentes
+  )
+
+simu_40_60_s_long %>% 
+ggplot() +
+  
+  #geom_smooth(
+   # aes(x = PRECTOTCORR, y = sim.y, group = ii), se = FALSE, 
+  #  color = "grey", alpha = 0.09,
+   # method = "gam", formula = y ~ s(x, bs = "cr")
+  #) +
+ # geom_line(
+  #  data = simu_0_20,
+   # aes(x = T2M, y = sim.y, group = interaction(id, .sim)), 
+    #color = "grey", alpha = 0.1
+  #) +
+  geom_smooth(aes(x = values, y = mean_sev), 
+    se = FALSE, color = "black", size = 2, linetype = "solid",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  # Limite superior do intervalo de confiança
+  geom_smooth(aes(x = values, y = up_95), 
+    se = FALSE, color = "black", size = 1, linetype = "dashed",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  # Limite inferior do intervalo de confiança
+  geom_smooth(aes(x = values, y = low_95), 
+    se = FALSE, color = "black", size = 1, linetype = "dashed",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  ggthemes::theme_few()+
+  facet_wrap(~variables,scales = "free_x")#+
+  #scale_y_continuous(breaks = c(0,0.10,0.20,0.30,0.40,0.50),limits = c(0,0.50))
+
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork) # Para combinar os gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_40_60 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Criar um gráfico para cada variável
+  p <- pred_40_60_pred %>%
+    ggplot(aes_string(x = var, y = "fit*100")) + # aes_string para usar a variável dinamicamente
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2) +
+    theme_minimal() +
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_40_60[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_40_60 <- wrap_plots(g_40_60, ncol = 3) + 
+  plot_annotation(title = "Windows: 40-60")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_40_60.png", plot_40_60, width = 12, height = 10, dpi = 300)
+
+# Visualizar o gráfico combinado
+plot_40_60
+
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork)  # Para combinar gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_40_60 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Identificar os intervalos onde y_scaled >= 30
+  highlight_ranges <- pred_40_60_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    filter(y_scaled >= 30) %>%
+    summarise(
+      xmin = min(!!sym(var), na.rm = TRUE),
+      xmax = max(!!sym(var), na.rm = TRUE)
+    )
+  
+  # Criar o gráfico para a variável
+  p <- pred_40_60_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    ggplot(aes_string(x = var, y = "y_scaled")) +
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2.5) +
+    
+    # Adicionar faixa cinza (se houver intervalo identificado)
+    { if (nrow(highlight_ranges) > 0) 
+        geom_rect(data = highlight_ranges, inherit.aes = FALSE,
+                  aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                  fill = "darkred", alpha = 0.3) 
+      else NULL } +
+    
+    ggthemes::theme_few() +
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_40_60[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_40_60 <- wrap_plots(g_40_60, ncol = 3) +
+  plot_annotation(title = "Windows: 40-60 (Severity > 30 Highlighted)")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_40_60_highlighted.png", plot_40_60, width = 8, height = 8, dpi = 600)
+
+# Visualizar o gráfico combinado
+print(plot_40_60)
+
+```
+
+## 60 to 80
+
+```{r}
+
+wd_60_80 = weather_data %>% 
+  dplyr::filter(days >= 60 & days <= 80)
+
+
+train_60_80 <- sample(1:nrow(wd_60_80), 0.95 * nrow(wd_60_80)) 
+  
+  
+  train_data_60_80 <- wd_60_80[train_60_80, ]
+  test_data_60_80 <- wd_60_80[-train_60_80, ]
+```
+
+```{r}
+model_60_80 = bam(
+ mean_sev~  s(T2M_MIN,bs='cr', k =60) + 
+           s(lat, lon, bs = "tp", k = 60) + 
+           s(days_difference, bs = "cr", k =60) +
+           s(T2M,RH2M, bs = 'tp', k =60) +
+           s(T2M_MAX, bs = "cr", k = 60) +
+           s(PRECTOTCORR, bs = "cr", k = 60) +
+           s(DPD, bs = "cr", k = 60),
+           family = betar(),
+          data = wd_60_80,
+         method = "fREML")
+
+gc()
+```
+
+```{r}
+summary(model_60_80)
+gam.check(model_60_80)
+AIC(model_60_80)
+BIC(model_60_80)
+```
+
+```{r}
+model_60_80_pf = gam(
+ mean_sev~ s(T2M_MIN,bs='cr', k =60) + s(lat, lon, bs = "tp", k = 60) + s(days_difference, bs = "cr", k =60) + s(T2M,RH2M, bs = 'tp', k =60) + s(T2M_MAX, bs = "cr", k = 60) + s(PRECTOTCORR, bs = "cr", k = 60) + s(DPD, bs = "cr", k = 60),
+  family = betar(),
+  data = train_data_60_80,
+  method = "REML")
+
+gc()
+
+pred_60_80 = predict.gam(model_60_80_pf, newdata = test_data_60_80, type = "response")
+pred_60_80 = as.data.frame(pred_60_80)
+test_data_60_80 = as.data.frame(test_data_60_80)
+CCC_60_80 <- epi.ccc(test_data_60_80$mean_sev, pred_60_80$pred_60_80)
+print(CCC_60_80$rho.c) 
+
+
+rhoc_60_80 <- CCC_60_80$rho.c   
+Cb_60_80  <- CCC_60_80$C.b     
+
+
+rho_60_80 <- rhoc_60_80 / Cb_60_80
+rho_60_80
+
+```
+
+### Partial effect
+
+#### Smooth estimation
+
+```{r}
+
+library(gratia)
+#effects_days_60_80 <- smooth_estimates(model_60_80, smooth = "s(days_difference)", n = 1000)
+effects_days_60_80 <- smooth_estimates(model_60_80, smooth = "s(days_difference)")
+effects_t2m_max_60_80 <- smooth_estimates(model_60_80, smooth = "s(T2M_MAX)")
+effects_t2m_min_60_80 <- smooth_estimates(model_60_80, smooth = "s(T2M_MIN)")
+effects_latlon_60_80 <- smooth_estimates(model_60_80, smooth = "s(lat,lon)")
+effects_t2m_rh2m_60_80 <- smooth_estimates(model_60_80, smooth = "s(T2M,RH2M)")
+effects_dpd_60_80 <- smooth_estimates(model_60_80, smooth = "s(DPD)")
+effects_PRECTOTCORR_60_80 <- smooth_estimates(model_60_80, smooth = "s(PRECTOTCORR)")
+
+gc()
+```
+
+#### Confidence interval
+
+```{r}
+
+# T2M/RH2M
+
+effects_t2m_rh2m_60_80$upper <- effects_t2m_rh2m_60_80$.estimate + 1.96 * effects_t2m_rh2m_60_80$.se  
+effects_t2m_rh2m_60_80$lower <- effects_t2m_rh2m_60_80$.estimate - 1.96 * effects_t2m_rh2m_60_80$.se 
+
+# T2M MAX
+
+effects_t2m_max_60_80$upper <- effects_t2m_max_60_80$.estimate + 1.96 * effects_t2m_max_60_80$.se 
+effects_t2m_max_60_80$lower <- effects_t2m_max_60_80$.estimate - 1.96 * effects_t2m_max_60_80$.se  
+
+# T2M MIN
+
+effects_t2m_min_60_80$upper <- effects_t2m_min_60_80$.estimate + 1.96 * effects_t2m_min_60_80$.se 
+effects_t2m_min_60_80$lower <- effects_t2m_min_60_80$.estimate - 1.96 * effects_t2m_min_60_80$.se
+
+# Rain
+
+effects_PRECTOTCORR_60_80$upper <- effects_PRECTOTCORR_60_80$.estimate + 1.96 * effects_PRECTOTCORR_60_80$.se 
+effects_PRECTOTCORR_60_80$lower <- effects_PRECTOTCORR_60_80$.estimate - 1.96 * effects_PRECTOTCORR_60_80$.se
+
+
+# Lat / Lon
+
+effects_latlon_60_80$upper <- effects_latlon_60_80$.estimate + 1.96 * effects_latlon_60_80$.se 
+effects_latlon_60_80$lower <- effects_latlon_60_80$.estimate - 1.96 * effects_latlon_60_80$.se
+
+
+# Windown
+
+
+effects_days_60_80$upper <- effects_days_60_80$.estimate + 1.96 * effects_days_60_80$.se
+effects_days_60_80$lower <- effects_days_60_80$.estimate - 1.96 * effects_days_60_80$.se
+
+# DPD
+
+
+effects_dpd_60_80$upper <- effects_dpd_60_80$.estimate + 1.96 * effects_dpd_60_80$.se
+effects_dpd_60_80$lower <- effects_dpd_60_80$.estimate - 1.96 * effects_dpd_60_80$.se
+
+```
+
+#### Inverse link function
+
+##### Estimate
+
+```{r}
+effects_t2m_rh2m_60_80$estimate2 = (exp(effects_t2m_rh2m_60_80$.estimate) / (1 + exp(effects_t2m_rh2m_60_80$.estimate)))
+effects_t2m_max_60_80$estimate2 = (exp(effects_t2m_max_60_80$.estimate) / (1 + exp(effects_t2m_max_60_80$.estimate)))
+effects_t2m_min_60_80$estimate2 = (exp(effects_t2m_min_60_80$.estimate) / (1 + exp(effects_t2m_min_60_80$.estimate)))
+effects_latlon_60_80$estimate2 = (exp(effects_latlon_60_80$.estimate) / (1 + exp(effects_latlon_60_80$.estimate)))
+effects_days_60_80$estimate2 = (exp(effects_days_60_80$.estimate) / (1 + exp(effects_days_60_80$.estimate)))
+effects_PRECTOTCORR_60_80$estimate2 = (exp(effects_PRECTOTCORR_60_80$.estimate) / (1 + exp(effects_PRECTOTCORR_60_80$.estimate)))
+effects_dpd_60_80$estimate2 = (exp(effects_dpd_60_80$.estimate) / (1 + exp(effects_dpd_60_80$.estimate)))
+
+```
+
+##### Confidence interval
+
+```{r}
+effects_t2m_rh2m_60_80$upper = (exp(effects_t2m_rh2m_60_80$upper) / (1 + exp(effects_t2m_rh2m_60_80$upper)))
+effects_t2m_rh2m_60_80$lower = (exp(effects_t2m_rh2m_60_80$lower) / (1 + exp(effects_t2m_rh2m_60_80$lower)))
+effects_t2m_rh2m_60_80$.se = (exp(effects_t2m_rh2m_60_80$.se) / (1 + exp(effects_t2m_rh2m_60_80$.se)))
+
+effects_t2m_rh2m_60_80$.by = NULL
+effects_t2m_rh2m_60_80$.type = NULL
+effects_t2m_rh2m_60_80$.estimate = NULL
+effects_t2m_60_80 = effects_t2m_rh2m_60_80
+effects_rh2m_60_80 = effects_t2m_rh2m_60_80
+effects_t2m_60_80$.smooth = NULL
+effects_rh2m_60_80$.smooth = NULL
+
+effects_t2m_60_80$RH2M = NULL
+effects_t2m_60_80$variable = "T2M"
+
+effects_rh2m_60_80$T2M = NULL
+effects_rh2m_60_80$variable = "RH2M"
+
+colnames(effects_t2m_60_80) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_rh2m_60_80) = c("se", "value","upper","lower","effect","variable")
+
+
+
+effects_t2m_max_60_80$upper = (exp(effects_t2m_max_60_80$upper) / (1 + exp(effects_t2m_max_60_80$upper)))
+effects_t2m_max_60_80$lower = (exp(effects_t2m_max_60_80$lower) / (1 + exp(effects_t2m_max_60_80$lower)))
+effects_t2m_max_60_80$.se = (exp(effects_t2m_max_60_80$.se) / (1 + exp(effects_t2m_max_60_80$.se)))
+
+effects_t2m_max_60_80$.by = NULL
+effects_t2m_max_60_80$.type = NULL
+effects_t2m_max_60_80$.estimate = NULL
+effects_t2m_max_60_80$.smooth = NULL
+effects_t2m_max_60_80$variable = "T2M_MAX"
+
+colnames(effects_t2m_max_60_80) = c("se", "value","upper","lower","effect","variable")
+
+effects_t2m_min_60_80$upper = (exp(effects_t2m_min_60_80$upper) / (1 + exp(effects_t2m_min_60_80$upper)))
+effects_t2m_min_60_80$lower = (exp(effects_t2m_min_60_80$lower) / (1 + exp(effects_t2m_min_60_80$lower)))
+effects_t2m_min_60_80$.se = (exp(effects_t2m_min_60_80$.se) / (1 + exp(effects_t2m_min_60_80$.se)))
+
+effects_t2m_min_60_80$.by = NULL
+effects_t2m_min_60_80$.type = NULL
+effects_t2m_min_60_80$.estimate = NULL
+effects_t2m_min_60_80$.smooth = NULL
+effects_t2m_min_60_80$variable = "T2M_MIN"
+
+colnames(effects_t2m_min_60_80) = c("se", "value","upper","lower","effect","variable")
+
+effects_latlon_60_80$upper = (exp(effects_latlon_60_80$upper) / (1 + exp(effects_latlon_60_80$upper)))
+effects_latlon_60_80$lower = (exp(effects_latlon_60_80$lower) / (1 + exp(effects_latlon_60_80$lower)))
+effects_latlon_60_80$.se = (exp(effects_latlon_60_80$.se) / (1 + exp(effects_latlon_60_80$.se)))
+
+effects_latlon_60_80$.by = NULL
+effects_latlon_60_80$.type = NULL
+effects_latlon_60_80$.estimate = NULL
+effects_lat_60_80 = effects_latlon_60_80
+effects_lon_60_80 = effects_latlon_60_80
+effects_lat_60_80$.smooth = NULL
+effects_lon_60_80$.smooth = NULL
+
+effects_lat_60_80$lon = NULL
+effects_lat_60_80$variable = "Latitude"
+
+effects_lon_60_80$lat = NULL
+effects_lon_60_80$variable = "Longitude"
+
+colnames(effects_lat_60_80) = c("se", "value","upper","lower","effect","variable")
+colnames(effects_lon_60_80) = c("se", "value","upper","lower","effect","variable")
+
+effects_days_60_80$upper = (exp(effects_days_60_80$upper) / (1 + exp(effects_days_60_80$upper)))
+effects_days_60_80$lower = (exp(effects_days_60_80$lower) / (1 + exp(effects_days_60_80$lower)))
+effects_days_60_80$.se = (exp(effects_days_60_80$.se) / (1 + exp(effects_days_60_80$.se)))
+
+effects_days_60_80$.by = NULL
+effects_days_60_80$.type = NULL
+effects_days_60_80$.estimate = NULL
+effects_days_60_80$.smooth = NULL
+effects_days_60_80$variable = "Days"
+
+colnames(effects_days_60_80) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_PRECTOTCORR_60_80$upper = (exp(effects_PRECTOTCORR_60_80$upper) / (1 + exp(effects_PRECTOTCORR_60_80$upper)))
+effects_PRECTOTCORR_60_80$lower = (exp(effects_PRECTOTCORR_60_80$lower) / (1 + exp(effects_PRECTOTCORR_60_80$lower)))
+effects_PRECTOTCORR_60_80$.se = (exp(effects_PRECTOTCORR_60_80$.se) / (1 + exp(effects_PRECTOTCORR_60_80$.se)))
+
+effects_PRECTOTCORR_60_80$.by = NULL
+effects_PRECTOTCORR_60_80$.type = NULL
+effects_PRECTOTCORR_60_80$.estimate = NULL
+effects_PRECTOTCORR_60_80$.smooth = NULL
+effects_PRECTOTCORR_60_80$variable = "Rain"
+
+colnames(effects_PRECTOTCORR_60_80) = c("se", "value","upper","lower","effect","variable")
+
+
+effects_dpd_60_80$upper = (exp(effects_dpd_60_80$upper) / (1 + exp(effects_dpd_60_80$upper)))
+effects_dpd_60_80$lower = (exp(effects_dpd_60_80$lower) / (1 + exp(effects_dpd_60_80$lower)))
+effects_dpd_60_80$.se = (exp(effects_dpd_60_80$.se) / (1 + exp(effects_dpd_60_80$.se)))
+
+effects_dpd_60_80$.by = NULL
+effects_dpd_60_80$.type = NULL
+effects_dpd_60_80$.estimate = NULL
+effects_dpd_60_80$.smooth = NULL
+effects_dpd_60_80$variable = "DPD"
+
+colnames(effects_dpd_60_80) = c("se", "value","upper","lower","effect","variable")
+
+
+pf_60_80 = rbind(effects_t2m_60_80,effects_rh2m_60_80,effects_t2m_max_60_80,effects_t2m_min_60_80,
+           effects_lat_60_80,effects_lon_60_80,effects_days_60_80,effects_PRECTOTCORR_60_80,effects_dpd_60_80)
+
+```
+
+```{r}
+pf_60_802 = pf_60_80 %>% 
+  group_by(variable) %>% 
+  summarise(
+    effect = mean(effect),
+    upper = mean(upper),
+    lower = mean(lower)
+  )
+
+pf_60_802 %>% 
+  ggplot(aes(variable, effect, group = variable))+
+geom_pointrange(aes(ymin = lower, ymax = upper))+
+  ggthemes::theme_few()
+```
+
+```{r}
+
+pf_0_202$windows = c("0 to 20")
+pf_20_402$windows = c("20 to 40")
+pf_40_602$windows = c("40 to 60")
+pf_60_802$windows = c("60 to 80")
+
+pf_all_effect = rbind(pf_0_202,pf_20_402,pf_40_602,pf_60_802)
+
+pf_all_effect %>% 
+  ggplot(aes(variable, effect, group = windows, color = windows))+
+geom_pointrange(aes(ymin = lower, ymax = upper), position = position_dodge(0.8))+
+  ggthemes::theme_few()+
+  scale_color_viridis_d()
+  #facet_wrap(~windows)
+```
+
+```{r}
+
+pf_0_20$windows = c("0 to 20")
+pf_20_40$windows = c("20 to 40")
+pf_40_60$windows = c("40 to 60")
+pf_60_80$windows = c("60 to 80")
+
+effect_pf = rbind(pf_0_20,pf_20_40,pf_40_60,pf_60_80)
+
+effect_pf %>% 
+  filter(variable == "DPD") %>% 
+ggplot(aes(x = effect)) +
+  stat_halfeye(fill = "#ffc425", alpha = 0.7)+
+  
+  ggthemes::theme_few() +
+
+  labs(
+    y = "Density",
+    x = "Effect (%)")+
+    theme(
+    text = element_text(face = "bold", size = 14),
+    axis.title = element_text(size = 20, face = "bold"),
+    axis.text.x = element_text(vjust = 1, size = 14, face = "bold"),
+    axis.text.y = element_text(vjust = 1, size = 14, face = "bold"),
+    legend.position = "none",
+    legend.justification = 0.5,
+    panel.grid = element_blank())+
+   facet_wrap(~windows)
+```
+
+### Plotting
+
+```{r}
+library(ggplot2)
+library(patchwork)
+
+plot_list_60_80 <- pf_60_80 %>%
+  group_by(variable) %>%
+  group_split() %>%
+  lapply(function(df) {
+    ggplot(df, aes(x = value, y = effect)) +
+      geom_smooth(
+        method = "gam", formula = y ~ s(x, bs = "cr"), 
+        se = FALSE, color = "black", size = 1.5
+      ) +
+     # geom_smooth(
+     #  aes(value, upper), se = FALSE, color = "black", 
+     #   size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+     # ) +
+     #  geom_smooth(
+      #  aes(value, lower), se = FALSE, color = "black", 
+      #  size = 1, linetype = "dashed", method = "gam", formula = y ~ s(x, bs = "cr")
+      #) +
+      labs(x = unique(df$variable),
+        y = "Partial Effect"
+      ) +
+      theme_minimal() +
+      
+      theme(plot.title = element_text(hjust = 0.5),
+            text = element_text(size = 12, face = "bold"))
+  })
+
+# Combinar os gráficos
+combined_plot_60_80 <- wrap_plots(plot_list_60_80, ncol = 3)
+combined_plot_60_80
+
+ggsave("fig/partial_effect_60_80.png", dpi = 600, bg = "white", height = 6, width = 8)
+```
+
+### Prediction
+
+```{r}
+pred_60_80_pred = predict.gam(model_60_80,se.fit = T, type = "response")
+pred_60_80_pred = as.data.frame(pred_60_80_pred)
+
+
+pred_60_80_pred$T2M = wd_60_80$T2M
+pred_60_80_pred$RH2M = wd_60_80$RH2M
+pred_60_80_pred$T2M_MIN = wd_60_80$T2M_MIN
+pred_60_80_pred$T2M_MAX = wd_60_80$T2M_MAX
+pred_60_80_pred$days_difference = wd_60_80$days_difference
+pred_60_80_pred$PRECTOTCORR = wd_60_80$PRECTOTCORR
+pred_60_80_pred$lat = wd_60_80$lat
+pred_60_80_pred$lon = wd_60_80$lon
+pred_60_80_pred$DPD = wd_60_80$DPD
+
+gc()
+
+set.seed(123)
+simu_60_80 <- simulate_gam(model_60_80, nsim = 100, value = "data.frame")
+
+
+
+simu_60_80_s <- simu_60_80 %>%
+  dplyr::group_by(id,days) %>%
+  summarise(
+    mean_sev = mean(sim.y, na.rm = TRUE),
+    T2M = mean(T2M, na.rm = TRUE),
+    T2M_MAX = mean(T2M_MAX, na.rm = TRUE),
+    T2M_MIN = mean(T2M_MIN, na.rm = TRUE),
+    RH2M = mean(RH2M, na.rm = TRUE),
+    PRECTOTCORR = mean(PRECTOTCORR, na.rm = TRUE),
+    DPD = mean(DPD, na.rm = TRUE),
+    lat = mean(lat, na.rm = TRUE),
+    lon = mean(lon, na.rm = TRUE),
+    days_difference = mean(days_difference, na.rm = TRUE),
+    up_95 = quantile(sim.y, 0.975),  
+    low_95 = quantile(sim.y, 0.025) 
+    #se = sd(sim.y, na.rm = TRUE) / sqrt(n()),    
+    #max = max(sim.y, na.rm = TRUE),         
+    #min = min(sim.y, na.rm = TRUE)         
+  )
+
+
+simu_60_80_s_long <- simu_60_80_s %>%
+  pivot_longer(
+    cols = -c(id, days,up_95,low_95,mean_sev),  # Mantém apenas 'id' e 'days' fixos
+    names_to = "variables",  # Nome da nova coluna com os nomes das variáveis
+    values_to = "values"  # Nome da nova coluna com os valores correspondentes
+  )
+
+simu_60_80_s_long %>% 
+ggplot() +
+  
+  #geom_smooth(
+   # aes(x = PRECTOTCORR, y = sim.y, group = ii), se = FALSE, 
+  #  color = "grey", alpha = 0.09,
+   # method = "gam", formula = y ~ s(x, bs = "cr")
+  #) +
+ # geom_line(
+  #  data = simu_0_20,
+   # aes(x = T2M, y = sim.y, group = interaction(id, .sim)), 
+    #color = "grey", alpha = 0.1
+  #) +
+  geom_smooth(aes(x = values, y = mean_sev), 
+    se = FALSE, color = "black", size = 2, linetype = "solid",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  # Limite superior do intervalo de confiança
+  geom_smooth(aes(x = values, y = up_95), 
+    se = FALSE, color = "black", size = 1, linetype = "dashed",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  # Limite inferior do intervalo de confiança
+  geom_smooth(aes(x = values, y = low_95), 
+    se = FALSE, color = "black", size = 1, linetype = "dashed",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  ggthemes::theme_few()+
+  facet_wrap(~variables,scales = "free_x")#+
+  #scale_y_continuous(breaks = c(0,0.10,0.20,0.30,0.40,0.50),limits = c(0,0.50))
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork) # Para combinar os gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_60_80 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Criar um gráfico para cada variável
+  p <- pred_60_80_pred %>%
+    ggplot(aes_string(x = var, y = "fit*100")) + # aes_string para usar a variável dinamicamente
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2) +
+    theme_minimal() +
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_60_80[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_60_80 <- wrap_plots(g_60_80, ncol = 3) + 
+  plot_annotation(title = "Windows: 60-80")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_60_80.png", plot_60_80, width = 12, height = 10, dpi = 300)
+
+# Visualizar o gráfico combinado
+plot_60_80
+
+```
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(patchwork)  # Para combinar gráficos
+library(dplyr)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+g_60_80 <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Identificar os intervalos onde y_scaled >= 30
+  highlight_ranges <- pred_60_80_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    filter(y_scaled >= 30) %>%
+    summarise(
+      xmin = min(!!sym(var), na.rm = TRUE),
+      xmax = max(!!sym(var), na.rm = TRUE)
+    )
+  
+  # Criar o gráfico para a variável
+  p <- pred_60_80_pred %>%
+    mutate(y_scaled = fit * 100) %>%
+    ggplot(aes_string(x = var, y = "y_scaled")) +
+    geom_smooth(color = "black", se = TRUE, fill = "white", size = 2.5) +
+    
+    # Adicionar faixa cinza (se houver intervalo identificado)
+    { if (nrow(highlight_ranges) > 0) 
+        geom_rect(data = highlight_ranges, inherit.aes = FALSE,
+                  aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                  fill = "darkred", alpha = 0.3) 
+      else NULL } +
+    
+    ggthemes::theme_few() +
+    labs(x = var, y = "Severity (%)") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  g_60_80[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+plot_60_80 <- wrap_plots(g_60_80, ncol = 3) +
+  plot_annotation(title = "Windows: 60-80 (Severity > 30 Highlighted)")
+
+# Salvar o gráfico combinado
+ggsave("fig/pred_60_80_highlighted.png", plot_60_80, width = 8, height = 8, dpi = 300)
+
+# Visualizar o gráfico combinado
+print(plot_60_80)
+
+```
+
+```{r}
+simu_0_20_s_long$windows = c("0 to 20")
+simu_20_40_s_long$windows = c("20 to 40")
+simu_40_60_s_long$windows = c("40 to 60")
+simu_60_80_s_long$windows = c("60 to 80")
+
+all_simu = rbind(simu_0_20_s_long,simu_20_40_s_long,simu_40_60_s_long,simu_60_80_s_long)
+
+
+all_simu %>% 
+ggplot() +
+  
+  #geom_smooth(
+   # aes(x = PRECTOTCORR, y = sim.y, group = ii), se = FALSE, 
+  #  color = "grey", alpha = 0.09,
+   # method = "gam", formula = y ~ s(x, bs = "cr")
+  #) +
+ # geom_line(
+  #  data = simu_0_20,
+   # aes(x = T2M, y = sim.y, group = interaction(id, .sim)), 
+    #color = "grey", alpha = 0.1
+  #) +
+  geom_smooth(aes(x = values, y = mean_sev, group = windows, color = windows), 
+    se = FALSE, size = 2, linetype = "solid",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  # Limite superior do intervalo de confiança
+  geom_smooth(aes(x = values, y = up_95, group = windows, color = windows), 
+    se = FALSE, size = 1, linetype = "dashed",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  # Limite inferior do intervalo de confiança
+  geom_smooth(aes(x = values, y = low_95, group = windows, color = windows), 
+    se = FALSE, size = 1, linetype = "dashed",
+    method = "gam", formula = y ~ s(x, bs = "cr")
+  ) +
+  ggthemes::theme_few()+
+  facet_wrap(~variables,scales = "free_x")#+
+  #scale_y_continuous(breaks = c(0,0.10,0.20,0.30,0.40,0.50),limits = c(0,0.50))
+```
+
+## By period
+
+### T2M
+
+```{r}
+hr_0_20 <- pred_0_20_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_0_20 <- simu_0_20_s %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_0_20) > 0) 
+      geom_rect(data = hr_0_20, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+hr_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_20_40) > 0) 
+      geom_rect(data = hr_20_40, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_40_60) > 0) 
+      geom_rect(data = hr_40_60, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_60_80) > 0) 
+      geom_rect(data = hr_60_80, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+plot_grid(T2M_0_20,T2M_20_40,T2M_40_60,T2M_60_80,
+          ncol = 4)
+
+ggsave("fig/T2M_period.png", bg = "white", dpi = 600, width = 12, height = 4)
+
+```
+
+### T2M MAX
+
+```{r}
+hr_t2m_max_0_20 <- pred_0_20_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M_MAX, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M_MAX, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_MAX_0_20 <- pred_0_20_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M_MAX, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_t2m_max_0_20) > 0) 
+      geom_rect(data = hr_t2m_max_0_20, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M_MAX", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+hr_t2m_max_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M_MAX, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M_MAX, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_MAX_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M_MAX, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_t2m_max_20_40) > 0) 
+      geom_rect(data = hr_t2m_max_20_40, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M_MAX", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_t2m_max_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M_MAX, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M_MAX, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_MAX_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M_MAX, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_t2m_max_40_60) > 0) 
+      geom_rect(data = hr_t2m_max_40_60, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M_MAX", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_t2m_max_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M_MAX, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M_MAX, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_MAX_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M_MAX, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_t2m_max_60_80) > 0) 
+      geom_rect(data = hr_t2m_max_60_80, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M_MAX", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+plot_grid(T2M_MAX_0_20,T2M_MAX_20_40,T2M_MAX_40_60,T2M_MAX_60_80,
+          ncol = 4)
+
+ggsave("fig/T2M_MAX_period.png", bg = "white", dpi = 600, width = 12, height = 4)
+
+```
+
+### T2M MIN
+
+```{r}
+hr_t2m_min_0_20 <- pred_0_20_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M_MIN, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M_MIN, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_MIN_0_20 <- pred_0_20_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M_MIN, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_t2m_min_0_20) > 0) 
+      geom_rect(data = hr_t2m_min_0_20, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M_MIN", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+hr_t2m_min_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M_MIN, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M_MIN, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_MIN_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M_MIN, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_t2m_min_20_40) > 0) 
+      geom_rect(data = hr_t2m_min_20_40, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M_MIN", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_t2m_min_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M_MIN, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M_MIN, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_MIN_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M_MIN, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_t2m_min_40_60) > 0) 
+      geom_rect(data = hr_t2m_min_40_60, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M_MIN", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_t2m_min_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(T2M_MIN, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(T2M_MIN, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+T2M_MIN_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(T2M_MIN, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_t2m_min_60_80) > 0) 
+      geom_rect(data = hr_t2m_min_60_80, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "T2M_MIN", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+plot_grid(T2M_MIN_0_20,T2M_MIN_20_40,T2M_MIN_40_60,T2M_MIN_60_80,
+          ncol = 4)
+
+ggsave("fig/T2M_MIN_period.png", bg = "white", dpi = 600, width = 12, height = 4)
+```
+
+### RH2M
+
+```{r}
+hr_rh2m_0_20 <- pred_0_20_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(RH2M, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(RH2M, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+RH2M_0_20 <- pred_0_20_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(RH2M, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_rh2m_0_20) > 0) 
+      geom_rect(data = hr_rh2m_0_20, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "RH2M", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+hr_rh2m_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(RH2M, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(RH2M, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+RH2M_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(RH2M, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_rh2m_20_40) > 0) 
+      geom_rect(data = hr_rh2m_20_40, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "RH2M", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_rh2m_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(RH2M, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(RH2M, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+RH2M_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(RH2M, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_rh2m_40_60) > 0) 
+      geom_rect(data = hr_rh2m_40_60, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "RH2M", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_rh2m_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(RH2M, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(RH2M, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+RH2M_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(RH2M, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_rh2m_60_80) > 0) 
+      geom_rect(data = hr_rh2m_60_80, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "RH2M", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+plot_grid(RH2M_0_20,RH2M_20_40,RH2M_40_60,RH2M_60_80,
+          ncol = 4)
+
+ggsave("fig/RH2M_period.png", bg = "white", dpi = 600, width = 12, height = 4)
+```
+
+### RAIN
+
+```{r}
+hr_rain_0_20 <- pred_0_20_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(PRECTOTCORR, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(PRECTOTCORR, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+PRECTOTCORR_0_20 <- pred_0_20_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(PRECTOTCORR, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_rain_0_20) > 0) 
+      geom_rect(data = hr_rain_0_20, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "PRECTOTCORR", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+hr_rain_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(PRECTOTCORR, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(PRECTOTCORR, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+PRECTOTCORR_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(PRECTOTCORR, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_rain_20_40) > 0) 
+      geom_rect(data = hr_rain_20_40, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "PRECTOTCORR", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_rain_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(PRECTOTCORR, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(PRECTOTCORR, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+PRECTOTCORR_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(PRECTOTCORR, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_rain_40_60) > 0) 
+      geom_rect(data = hr_rain_40_60, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "PRECTOTCORR", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_rain_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(PRECTOTCORR, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(PRECTOTCORR, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+PRECTOTCORR_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(PRECTOTCORR, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_rain_60_80) > 0) 
+      geom_rect(data = hr_rain_60_80, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "PRECTOTCORR", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+plot_grid(PRECTOTCORR_0_20,PRECTOTCORR_20_40,PRECTOTCORR_40_60,PRECTOTCORR_60_80,
+          ncol = 4)
+
+ggsave("fig/PRECTOTCORR_period.png", bg = "white", dpi = 600, width = 12, height = 4)
+
+```
+
+### DPD
+
+```{r}
+hr_dpd_0_20 <- pred_0_20_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(DPD, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(DPD, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+DPD_0_20 <- pred_0_20_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(DPD, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_dpd_0_20) > 0) 
+      geom_rect(data = hr_dpd_0_20, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "DPD", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+hr_dpd_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(DPD, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(DPD, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+DPD_20_40 <- pred_20_40_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(DPD, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_dpd_20_40) > 0) 
+      geom_rect(data = hr_dpd_20_40, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "DPD", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_dpd_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(DPD, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(DPD, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+DPD_40_60 <- pred_40_60_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(DPD, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_dpd_40_60) > 0) 
+      geom_rect(data = hr_dpd_40_60, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "DPD", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+
+hr_dpd_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  filter(y_scaled >= 30) %>%
+  summarise(
+    xmin = min(DPD, na.rm = TRUE),  # Substitua "T2M" pela variável x do seu gráfico
+    xmax = max(DPD, na.rm = TRUE)
+  )
+
+# Criar o gráfico com faixa
+DPD_60_80 <- pred_60_80_pred %>%
+  mutate(y_scaled = fit * 100) %>%
+  ggplot(aes(DPD, y_scaled)) +
+  geom_smooth(se = FALSE, color = "black", size = 2.5) +
+  
+  # Adicionar faixa cinza (se houver intervalo identificado)
+  { if (nrow(hr_dpd_60_80) > 0) 
+      geom_rect(data = hr_dpd_60_80, inherit.aes = FALSE,
+                aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+                fill = "darkred", alpha = 0.3) 
+    else NULL } +
+  
+  ggthemes::theme_few() +
+  labs(x = "DPD", y = "Severity (%)") +
+  theme(text = element_text(size = 14, face = "bold"))
+
+plot_grid(DPD_0_20,DPD_20_40,DPD_40_60,DPD_60_80,
+          ncol = 4)
+
+ggsave("fig/DPD_period.png", bg = "white", dpi = 600, width = 12, height = 4)
+
+```
+
+## Joining
+
+```{r}
+library(cowplot)
+plot_grid(T2M_0_20,T2M_20_40,T2M_40_60,T2M_60_80,
+          T2M_MAX_0_20,T2M_MAX_20_40,T2M_MAX_40_60,T2M_MAX_60_80,
+          T2M_MIN_0_20,T2M_MIN_20_40,T2M_MIN_40_60,T2M_MIN_60_80,
+          RH2M_0_20,RH2M_20_40,RH2M_40_60,RH2M_60_80,
+          PRECTOTCORR_0_20,PRECTOTCORR_20_40,PRECTOTCORR_40_60,PRECTOTCORR_60_80,
+          RH2M_0_20,RH2M_20_40,RH2M_40_60,RH2M_60_80,
+          DPD_0_20,DPD_20_40,DPD_40_60,DPD_60_80,
+          ncol = 4)
+
+ggsave("fig/by_period.png", bg = "white", dpi = 600, width = 20, height = 14)
+```
+
+## All windows (MODIFICAR)
+
+```{r}
+# Carregar pacotes
+library(ggplot2)
+library(dplyr)
+library(patchwork)  # Combinar gráficos
+
+# Adicionar uma coluna de período em cada conjunto de dados
+pred_0_30_pred$period <- "0-30"
+pred_30_60_pred$period <- "30-60"
+pred_60_90_pred$period <- "60-90"
+pred_0_90_pred$period <- "0-90"
+pred_30_90_pred$period <- "30-90"
+pred_0_60_pred$period <- "0-60"
+
+# Unir todos os datasets em um único dataframe
+combined_data <- bind_rows(
+  pred_0_30_pred,
+  pred_30_60_pred,
+  pred_60_90_pred,
+  pred_0_90_pred,
+  pred_30_90_pred,
+  pred_0_60_pred
+)
+
+# Lista de variáveis que você quer plotar
+variaveis <- c("T2M", "RH2M", "T2M_MIN", "T2M_MAX", 
+               "days_difference", "PRECTOTCORR", "lat", "lon", "DPD")
+
+# Criar uma lista vazia para armazenar os gráficos
+graficos <- list()
+
+# Loop para criar os gráficos
+for (var in variaveis) {
+  
+  # Criar um gráfico para cada variável
+  p <- combined_data %>%
+    ggplot(aes_string(x = var, y = "fit*100", color = "period")) + # Definir a variável no eixo x e colorir por "period"
+    geom_smooth(se = F, size = 1.4) +
+    #scale_color_manual(values = c("0-30" = "red", "30-60" = "blue", 
+     #                             "60-90" = "green", "0-90" = "purple", 
+      #                            "30-90" = "orange", "0-60" = "brown")) +
+    scale_color_viridis_d("Windows", option = "viridis")+
+    ggthemes::theme_few() +
+    labs(x = var, y = "Severity (%)", color = "Period") +
+    theme(text = element_text(size = 14, face = "bold"))
+  
+  # Adicionar o gráfico à lista
+  graficos[[var]] <- p
+}
+
+# Combinar todos os gráficos usando patchwork
+grafico_combinado <- wrap_plots(graficos, ncol = 3) + 
+  plot_annotation(title = "")
+
+# Salvar o gráfico combinado
+ggsave("fig/all_periods.png", grafico_combinado, width = 15, height = 12, dpi = 600)
+
+# Visualizar o gráfico combinado
+grafico_combinado
+
+```
+
+# REMOVER
+
+```{r}
+pf_0_20$period = "0-20"
+pf_20_40$period = "20-40"
+pf_40_60$period = "40-60"
+pf_60_80$period = "60-80"
+
+pf_all = rbind(pf_0_20, pf_20_40, pf_40_60, pf_60_80)
+
+pf_all %>% 
+  filter(!variable %in% c("Latitude","Longitude","Days")) %>% 
+  ggplot(aes(period, effect, size = se))+
+  geom_jitter(width = .06, color = "darkorange", alpha = .05)+
+  geom_boxplot(fill = NA, color = "black", size = 1.2)+
+  scale_fill_binned()+
+  ggthemes::theme_few()+
+  facet_wrap(~variable)
+ 
+```
+
+## Residue
+
+```{r}
+
+# Extrair os resíduos e quantis teóricos
+residuals <- residuals(modelo4, type = "deviance")
+qq_data <- data.frame(
+  theoretical = qqnorm(residuals, plot.it = FALSE)$x,
+  residuals = qqnorm(residuals, plot.it = FALSE)$y
+)
+
+# Plotar o QQ plot
+qq = qq_data %>% 
+  ggplot(aes(x = theoretical, y = residuals)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  labs(x = "Theoretical Quantiles", y = "Deviance Residuals") +
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"))
+
+```
+
+```{r}
+# Extrair preditores lineares e resíduos
+linear_predictors <- predict(modelo4, type = "link")
+residuals_data <- data.frame(
+  linear_predictors = linear_predictors,
+  residuals = residuals
+)
+
+# Plotar resíduos vs preditores lineares
+predictors = residuals_data %>% 
+  ggplot(aes(x = linear_predictors, y = residuals)) +
+  geom_point(alpha = 0.2, color = "grey", size = 2) +
+  geom_hline(yintercept = 0, color = "black", linetype = "dashed", size = 1.4) +
+  labs(x = "Linear Predictors", y = "Deviance Residuals") +
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"))
+```
+
+```{r}
+# Plotar histograma dos resíduos
+res_hist= ggplot(residuals_data, aes(x = residuals)) +
+  geom_histogram(fill = "black", color = "white", bins = 20) +
+  labs(x = "Deviance Residuals", y = "Frequency") +
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"))
+
+```
+
+```{r}
+# Extrair valores observados e preditos
+observed <- modelo4$y
+predicted <- predict(modelo4, type = "response")
+prediction_data <- data.frame(
+  observed = observed,
+  predicted = predicted
+)
+
+# Plotar valores preditos vs observados
+pd_ob = prediction_data %>% 
+  ggplot(aes(x = observed, y = predicted)) +
+  geom_point(alpha = 0.5, color = "grey", size = 2) +
+  geom_abline(intercept = 0, slope = 1, color = "black", linetype = "dashed", size = 1.4) +
+  scale_x_continuous(breaks = c(0.1,0.2,0.3,0.4,0.5,0.6,0.7), limits = c(0.1, 0.7))+
+  scale_y_continuous(breaks = c(0.1,0.2,0.3,0.4,0.5,0.6,0.7), limits = c(0.1, 0.7))+
+  labs(x = "Observed Values", y = "Predicted Values") +
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"))
+
+```
+
+```{r}
+plot_grid(qq,predictors,res_hist,pd_ob)
+
+ggsave("fig/residue.png", dpi = 600, bg = "white", height = 6, width = 8)
+```

@@ -1,0 +1,693 @@
+---
+title: "prediction"
+format: html
+editor: visual
+---
+
+```{r}
+library(dplyr)
+library(purrr)
+library(gsheet)
+library(raster)
+library(ncdf4)
+library(lubridate)
+library(readxl)
+library(writexl)
+library(tidyverse)
+library(ggplot2)
+
+```
+
+```{r}
+weather_data = read_xlsx("data/weather_data.xlsx")
+weather_data$mean_sev = weather_data$mean_sev/100
+```
+
+# GAM
+
+```{r}
+weather_data = weather_data %>% 
+  mutate(T2M = (T2M_MAX+T2M_MIN)/2) #%>% 
+  #mutate(DPD = T2M - ((112 + 0.9*T2M)*RH2M^0.125 - 112 + 0.1*T2M))
+
+
+# Parâmetros da equação de Magnus-Tetens
+a <- 17.27
+b <- 237.7
+
+# Cálculo do ponto de orvalho (Td)
+alpha <- (a * weather_data$T2M) / (b + weather_data$T2M) + log(weather_data$RH2M / 100)
+weather_data$Td <- (b * alpha) / (a - alpha)
+
+# Cálculo do DPD
+weather_data$DPD <- weather_data$T2M - weather_data$Td
+
+```
+
+```{r}
+weather_data$planting_date = as.Date(weather_data$planting_date)
+
+weather_data <- weather_data %>%
+  mutate(
+    # Criando a data permitida diretamente com base no estado
+    allowed_date = case_when(
+      state == "MT" ~ as.Date(paste0(format(planting_date, "%Y"), "-09-16")), 
+      state == "MS" ~ as.Date(paste0(format(planting_date, "%Y"), "-09-16")),
+      state == "GO" ~ as.Date(paste0(format(planting_date, "%Y"), "-09-25")),
+      state == "PR" ~ as.Date(paste0(format(planting_date, "%Y"), "-09-11")),
+      state == "TO" ~ as.Date(paste0(format(planting_date, "%Y"), "-10-01")),
+      state == "DF" ~ as.Date(paste0(format(planting_date, "%Y"), "-10-01")),
+      state == "BA" ~ as.Date(paste0(format(planting_date, "%Y"), "-10-01")),
+      state == "MG" ~ as.Date(paste0(format(planting_date, "%Y"), "-10-01")) 
+    ),
+    # Ajustando o ano da allowed_date para casos de janeiro e fevereiro
+    allowed_date = if_else(
+      format(planting_date, "%m") %in% c("01", "02"), 
+      as.Date(paste0(as.numeric(format(planting_date, "%Y")) - 1, "-", format(allowed_date, "%m-%d"))),
+      allowed_date
+    ),
+    # Calculando a diferença em dias
+    days_difference = as.numeric(planting_date - allowed_date)
+  )
+
+
+# Visualizar resultado
+print(weather_data)
+
+weather_data$year1 <- as.numeric(factor(weather_data$year))
+weather_data$state1 <- as.numeric(factor(weather_data$state))
+weather_data$location1 <- as.numeric(factor(weather_data$location))
+weather_data$level1 <- as.numeric(factor(weather_data$level))
+
+weather_data %>% 
+  filter(days_difference < 0)
+
+unique(weather_data$level1)
+
+weather_data %>% 
+  ggplot(aes(days_difference))+
+  geom_histogram()
+```
+
+```{r}
+
+wd_60_80 = weather_data %>% 
+  dplyr::filter(days -10 & days <= 60)
+
+
+set.seed(123)
+
+wd_60_802 = wd_60_80 %>%
+  #filter(!mean_sev >= .6) %>% 
+  #filter(mean_sev > 0.05) %>% 
+  group_by(id) %>% 
+  dplyr::summarise(
+    RH2M = mean(RH2M),
+    T2M = mean(T2M),
+    T2M_MAX = mean(T2M_MAX),
+    T2M_MIN = mean(T2M_MIN),
+    DPD = mean(DPD),
+    PRECTOTCORR = mean(PRECTOTCORR),
+    lat = mean(lat),
+    lon = mean(lon),
+    days_difference = mean(days_difference),
+    mean_sev = mean(mean_sev),
+    level1 = mean(level1)
+    )
+
+wd_60_802 = wd_60_802 %>% 
+  dplyr::mutate(epidemic = ifelse(mean_sev >= 0.30, 1, 0))
+
+traint = wd_60_802 %>% 
+  filter(!id == 4)
+
+
+testt = wd_60_802 %>% 
+  filter(id == 4)
+
+#wd_60_80$level1 = as.factor(wd_60_80$level1)
+
+  modelt <- gam(
+    mean_sev ~ s(T2M_MIN, by = level1, bs = 'fs') +
+      s(days_difference, by = level1, bs = "fs")+
+      #s(RH2M, by = level1, bs = 'fs') +
+      #s(T2M, by = level1, bs = 'fs') +
+      s(T2M_MAX, by = level1, bs = "fs") +
+      s(PRECTOTCORR, by = level1, bs = "fs") +
+      s(DPD, by = level1, bs = "fs")+
+      #s(lat, by = level1, bs = "cr", k = 30)+
+      #s(lon, by = level1, bs = "cr", k = 30)+
+      s(T2M, RH2M, by = level1, bs = "tp")+
+      s(lat, lon, by = level1, bs = "tp"),
+    family = betar(),
+    data = traint,
+    method = "REML")
+  
+  
+modelt = betareg(
+  mean_sev ~ T2M_MIN + T2M_MAX + RH2M + PRECTOTCORR + lat + level1+ days_difference,
+  data = traint,
+  link = "logit"
+)
+  
+summary(modelt)
+predt= predict.gam(modelt, newdata= testt, type = "response")
+predt = as.data.frame(predt)
+predt$T2M = wd_60_80$T2M
+predt$PRECTOTCORR = wd_60_80$PRECTOTCORR
+
+
+
+predt %>% 
+  ggplot(aes(T2M, predt))+
+  geom_smooth(se = F)
+
+phi <- summary(modelt)$scale  # Dispersão estimada pelo modelo
+
+# Calcular os parâmetros da Beta
+alpha <- predt$fit * phi
+beta <- (1 - predt$fit) * phi
+
+nsim <- 60000
+simulated_values <- replicate(nsim, rnorm(length(predt$predt), mean = predt$fit, sd = predt$se.fit))
+simulated_values <- replicate(nsim, rbeta(length(predt$fit), shape1 = alpha, shape2 = beta))
+
+simulated_values = as.data.frame(simulated_values)
+mean(simulated_values$simulated_values)
+
+simulated_values <- stats::simulate(modelt, nsim = 100, newdata = testt)
+
+```
+
+```{r}
+library(gamclass)
+
+  cv_results <- CVgam(
+  formula = mean_sev ~ s(T2M_MIN, by = level1, bs = 'cr', k = 60) +
+  s(days_difference, by = level1, bs = "cr", k = 30) +
+      s(RH2M, by = level1, bs = 'cr', k = 60) +
+      s(T2M, by = level1, bs = 'cr', k = 60) +
+      s(T2M_MAX, by = level1, bs = "cr", k = 60) +
+      s(PRECTOTCORR, by = level1, bs = "cr", k = 60) +
+      s(DPD, by = level1, bs = "cr", k = 60)+
+      s(lat, by = level1, bs = "cr", k = 30)+
+      s(lon, by = level1, bs = "cr", k = 30),
+      #s(T2M, RH2M, by = level1, bs = "tp", k = 60),
+      #s(lat, lon, by = level1, bs = "tp", k = 60),
+  data = wd_60_802,
+  nfold = 3
+)
+
+library(nlraa)
+  
+simulated_values <- simulate_gam(modelt, nsim = 10000)
+simulated_values = as.data.frame(simulated_values)
+simulated_values$T2M = wd_60_80$T2M
+t = predict.gam(modelt, type = "response")
+
+t = as.data.frame(t)
+testt = as.data.frame(testt)
+
+```
+
+# LOOCV FS
+
+## Confusion matrix
+
+```{r}
+
+library(mgcv)
+library(betareg)
+
+wd_60_80 = weather_data %>% 
+  dplyr::filter(days >= 40 & days <= 60)
+
+
+set.seed(123)
+
+wd_60_802 = wd_60_80 %>%
+  #filter(!mean_sev >= .6) %>% 
+  #filter(mean_sev > 0.05) %>% 
+  group_by(id) %>% 
+  dplyr::summarise(
+    RH2M = mean(RH2M),
+    T2M = mean(T2M),
+    T2M_MAX = mean(T2M_MAX),
+    T2M_MIN = mean(T2M_MIN),
+    DPD = mean(DPD),
+    PRECTOTCORR = mean(PRECTOTCORR),
+    lat = mean(lat),
+    lon = mean(lon),
+    days_difference = mean(days_difference),
+    mean_sev = mean(mean_sev),
+    level1 = mean(level1)
+    )
+
+
+wd_60_802 = wd_60_802 %>% 
+  dplyr::mutate(epidemic = ifelse(mean_sev >= 0.25, 1, 0))
+
+#wd_60_802$level1 = as.factor(wd_60_802$level1)
+
+# Lista para armazenar os resultados
+results <- list()
+
+# Loop sobre cada id
+unique_ids <- unique(wd_60_802$id)  # Identificar todos os ids únicos
+for (i in unique_ids) {
+  
+  # Separar treino e teste
+  traint <- wd_60_802 %>% filter(id != i)  # Todos os outros ids
+  testt <- wd_60_802 %>% filter(id == i)  # Apenas o id atual
+  
+  # Ajustar o modelo
+  modelt <- gam(
+    epidemic ~ s(T2M_MIN, by = level1, bs = 'fs', k = 40) +
+      s(days_difference, by = level1, bs = "fs", k = 40)+
+      #s(RH2M, by = level1, bs = 'cr', k = 30) +
+      #s(T2M, by = level1, bs = 'cr', k = 30) +
+      s(T2M_MAX, by = level1, bs = "fs", k = 40) +
+      s(PRECTOTCORR, by = level1, bs = "fs", k = 40) +
+      s(DPD, by = level1, bs = "fs", k = 40)+
+      #s(lat, by = level1, bs = "cr", k = 30)+
+      #s(lon, by = level1, bs = "cr", k = 30)+
+      s(T2M, RH2M, by = level1, bs = "tp", k = 60),
+      #s(lat, lon, by = level1, bs = "tp", k = 60),
+    family = binomial(link = "logit"),
+    data = traint,
+    method = "REML")
+  
+  
+  # Fazer predição para o conjunto de teste
+  predt <- predict.gam(modelt, newdata = testt, type = "response")
+  
+  # Compilar os resultados (observado vs. predito)
+  results[[as.character(i)]] <- data.frame(
+    id = testt$id,
+    observed = testt$epidemic,
+    predicted = predt
+  )
+}
+
+# Combinar todos os resultados em um único dataframe
+final_results <- do.call(rbind, results)
+
+# Visualizar os primeiros resultados
+head(final_results)
+
+
+
+dat_rf_05 <- data.frame(
+  ID = 1:nrow(wd_60_802),          # Identificador único (opcional)
+  Observed = wd_60_802$epidemic,   # Valores observados (0 ou 1)
+  Predicted = final_results$predicted            # Probabilidades preditas pelo modelo
+)
+
+optimal.thresholds(dat_rf_05)
+cm_rf_05 = confusionMatrix(data = as.factor(as.numeric(final_results$predicted  > 0.59)),  mode= "everything",  reference = as.factor(wd_60_802$epidemic))
+cm_rf_05
+```
+
+## Without confusion matrix
+
+```{r}
+set.seed(123)
+
+acc <- NULL
+for(i in 1:nrow(wd_60_802))
+{
+    # Train-test splitting
+    # 499 samples -> fitting
+    # 1 sample -> testing
+    train <- wd_60_802[-i,]
+    test <- wd_60_802[i,]
+    
+    # Fitting
+
+    modelt <- gam(
+    epidemic ~ s(T2M_MIN, by = level1, bs = 'fs', k = 40) +
+      s(days_difference, by = level1, bs = "fs", k = 40)+
+      #s(RH2M, by = level1, bs = 'cr', k = 30) +
+      #s(T2M, by = level1, bs = 'cr', k = 30) +
+      s(T2M_MAX, by = level1, bs = "fs", k = 40) +
+      s(PRECTOTCORR, by = level1, bs = "fs", k = 40) +
+      s(DPD, by = level1, bs = "fs", k = 40)+
+      #s(lat, by = level1, bs = "cr", k = 30)+
+      #s(lon, by = level1, bs = "cr", k = 30)+
+      s(T2M, RH2M, by = level1, bs = "tp", k = 60)+
+      s(lat, lon, by = level1, bs = "tp", k = 60),
+    family = binomial(link = "logit"),
+    data = train,
+    method = "REML")
+    
+    # Predict results
+    results_prob <- predict(modelt,test,type='response')
+    
+    # If prob > 0.5 then 1, else 0
+    results <- ifelse(results_prob > 0.50,1,0)
+    
+    # Actual answers
+    answers <- test$epidemic
+    
+    # Calculate accuracy
+    misClasificError <- mean(answers != results)
+    
+    # Collecting results
+    acc[i] <- 1-misClasificError
+}
+
+# Average accuracy of the model
+mean(acc)
+```
+
+## Total
+
+```{r}
+
+wd_60_80 = weather_data %>% 
+  dplyr::filter(days >= 0 & days <= 60)
+
+
+wd_60_802 = wd_60_80 %>%
+  #filter(!mean_sev >= .6) %>% 
+  #filter(mean_sev > 0.05) %>% 
+  group_by(id) %>% 
+  dplyr::summarise(
+    RH2M = mean(RH2M),
+    T2M = mean(T2M),
+    T2M_MAX = mean(T2M_MAX),
+    T2M_MIN = mean(T2M_MIN),
+    DPD = mean(DPD),
+    PRECTOTCORR = sum(PRECTOTCORR),
+    lat = mean(lat),
+    lon = mean(lon),
+    days_difference = mean(days_difference),
+    mean_sev = mean(mean_sev),
+    level1 = mean(level1)
+    )
+
+
+wd_60_802 = wd_60_802 %>% 
+  dplyr::mutate(epidemic = ifelse(mean_sev >= 0.25, 1, 0))
+
+
+modelt <- gam(
+    epidemic ~ s(T2M_MIN, by = level1, bs = 'cr', k = 40) +
+      s(days_difference, by = level1, bs = "cr", k = 40)+
+      #s(RH2M, by = level1, bs = 'cr', k = 30) +
+      #s(T2M, by = level1, bs = 'cr', k = 30) +
+      s(T2M_MAX, by = level1, bs = "cr", k = 40) +
+      s(PRECTOTCORR, by = level1, bs = "cr", k = 40) +
+      s(DPD, by = level1, bs = "cr", k = 40)+
+      #s(lat, by = level1, bs = "cr", k = 30)+
+      #s(lon, by = level1, bs = "cr", k = 30)+
+      s(T2M, RH2M, by = level1, bs = "tp", k = 60),
+      #s(lat, lon, by = level1, bs = "tp", k = 60),
+    family = binomial(link = "logit"),
+    data = wd_60_802,
+    method = "REML")
+
+final_results = predict_gam(modelt, type = "response")
+final_results = as.data.frame(final_results)
+dat_rf_05 <- data.frame(
+  ID = 1:nrow(wd_60_802),          # Identificador único (opcional)
+  Observed = wd_60_802$epidemic,   # Valores observados (0 ou 1)
+  Predicted = final_results$final_results
+            # Probabilidades preditas pelo modelo
+)
+
+optimal.thresholds(dat_rf_05)
+cm_rf_05 = confusionMatrix(data = as.factor(as.numeric(final_results$final_results  > 0.61)),  mode= "everything",  reference = as.factor(wd_60_802$epidemic))
+cm_rf_05
+
+```
+
+# LOOCV CR
+
+```{r}
+set.seed(123)
+
+acc <- NULL
+for(i in 1:nrow(wd_60_802))
+{
+    # Train-test splitting
+    # 499 samples -> fitting
+    # 1 sample -> testing
+    train <- wd_60_802[-i,]
+    test <- wd_60_802[i,]
+    
+    # Fitting
+
+    modelt <- gam(
+    epidemic ~ s(T2M_MIN, by = level1, bs = 'fs', k = 25) +
+      s(days_difference, by = level1, bs = "fs", k = 25)+
+      #s(RH2M, by = level1, bs = 'cr', k = 30) +
+      #s(T2M, by = level1, bs = 'cr', k = 30) +
+      s(T2M_MAX, by = level1, bs = "fs", k = 25) +
+      s(T2M, PRECTOTCORR, by = level1, bs = "tp", k = 30)+
+      s(PRECTOTCORR, by = level1, bs = "fs", k = 25) +
+      s(DPD, by = level1, bs = "fs", k = 25)+
+      #s(lat, by = level1, bs = "cr", k = 30)+
+      #s(lon, by = level1, bs = "cr", k = 30)+
+      s(T2M, RH2M, by = level1, bs = "tp", k = 30),
+      #s(lat, lon, by = level1, bs = "tp", k = 30),
+    family = binomial(link = "logit"),
+    data = train,
+    method = "REML")
+    
+    # Predict results
+    results_prob <- predict(modelt,test,type='response')
+    
+    # If prob > 0.5 then 1, else 0
+    results <- ifelse(results_prob > 0.50,1,0)
+    
+    # Actual answers
+    answers <- test$epidemic
+    
+    # Calculate accuracy
+    misClasificError <- mean(answers != results)
+    
+    # Collecting results
+    acc[i] <- 1-misClasificError
+}
+
+# Average accuracy of the model
+mean(acc)
+```
+
+# Random forest
+
+```{r}
+library(randomForest)
+
+rf<- randomForest(as.factor(epidemic) ~ T2M + T2M_MAX + T2M_MIN + RH2M + days_difference + lat + lon + DPD + PRECTOTCORR, data = wd_60_802, importance = TRUE, ntree = 100)
+
+rf<- randomForest(mean_sev~ T2M + T2M_MAX + T2M_MIN + RH2M + days_difference + lat + lon + DPD + PRECTOTCORR, data = wd_60_802, importance = TRUE, ntree = 100)
+
+varImpPlot(rf)
+importance(rf)
+
+# Plotar a importância com customizações
+varImpPlot(rf, 
+           type = 1,         # Use '1' para Mean Decrease Accuracy ou '2' para Mean Decrease Gini
+           main = "Importância das Variáveis - Random Forest",
+           col = "blue",     # Cor das barras
+           cex = 0.8)        # Tamanho do texto
+
+```
+
+```{r}
+set.seed(123)
+
+acc <- NULL
+for(i in 1:nrow(wd_60_802))
+{
+    # Train-test splitting
+    # 499 samples -> fitting
+    # 1 sample -> testing
+    train <- wd_60_802[-i,]
+    test <- wd_60_802[i,]
+    
+    # Fitting
+
+    modelt <- randomForest(epidemic ~ T2M + T2M_MAX + T2M_MIN + 
+                             RH2M + days_difference + lat + lon + DPD +
+                             PRECTOTCORR, data = train, importance = TRUE, ntree = 100)
+
+    
+    # Predict results
+    results_prob <- predict(modelt,test,type='response')
+    
+    # If prob > 0.5 then 1, else 0
+    results <- ifelse(results_prob > 0.50,1,0)
+    
+    # Actual answers
+    answers <- test$epidemic
+    
+    # Calculate accuracy
+    misClasificError <- mean(answers != results)
+    
+    # Collecting results
+    acc[i] <- 1-misClasificError
+}
+
+# Average accuracy of the model
+mean(acc)
+```
+
+# LOOCV Mean sev
+
+```{r}
+wd_60_80 = weather_data %>% 
+  dplyr::filter(days -10 & days <= 60)
+
+
+set.seed(123)
+
+wd_60_802 = wd_60_80 %>%
+  #filter(!mean_sev >= .6) %>% 
+  #filter(mean_sev > 0.05) %>% 
+  group_by(id) %>% 
+  dplyr::summarise(
+    RH2M = mean(RH2M),
+    T2M = mean(T2M),
+    T2M_MAX = mean(T2M_MAX),
+    T2M_MIN = mean(T2M_MIN),
+    DPD = mean(DPD),
+    PRECTOTCORR = mean(PRECTOTCORR),
+    lat = mean(lat),
+    lon = mean(lon),
+    days_difference = mean(days_difference),
+    mean_sev = mean(mean_sev),
+    level1 = mean(level1)
+    )
+
+
+
+# Lista para armazenar os resultados
+results <- list()
+
+# Loop sobre cada id
+unique_ids <- unique(wd_60_802$id)  # Identificar todos os ids únicos
+for (i in unique_ids) {
+  
+  # Separar treino e teste
+  traint <- wd_60_802 %>% filter(id != i)  # Todos os outros ids
+  testt <- wd_60_802 %>% filter(id == i)  # Apenas o id atual
+  
+  # Ajustar o modelo
+  modelt <- gam(
+    mean_sev ~ s(T2M_MIN, by = level1, bs = 'cr', k = 40) +
+      s(days_difference, by = level1, bs = "cr", k = 40)+
+      #s(RH2M, by = level1, bs = 'cr', k = 30) +
+      #s(T2M, by = level1, bs = 'cr', k = 30) +
+      s(T2M_MAX, by = level1, bs = "cr", k = 40) +
+      s(PRECTOTCORR, by = level1, bs = "cr", k = 40) +
+      s(DPD, by = level1, bs = "cr", k = 40)+
+      #s(lat, by = level1, bs = "cr", k = 30)+
+      #s(lon, by = level1, bs = "cr", k = 30)+
+      s(T2M, RH2M, by = level1, bs = "tp", k = 60)+
+      s(lat, lon, by = level1, bs = "tp", k = 60),
+    family = betar(),
+    data = traint,
+    method = "REML")
+  
+  
+  # Fazer predição para o conjunto de teste
+  predt <- predict.gam(modelt, newdata = testt, type = "response")
+  
+  # Compilar os resultados (observado vs. predito)
+  results[[as.character(i)]] <- data.frame(
+    id = testt$id,
+    observed = testt$mean_sev,
+    predicted = predt
+  )
+}
+
+# Combinar todos os resultados em um único dataframe
+final_results <- do.call(rbind, results)
+
+# Visualizar os primeiros resultados
+head(final_results)
+
+
+
+dat_rf_05 <- data.frame(
+  ID = 1:nrow(wd_60_802),          # Identificador único (opcional)
+  Observed = wd_60_802$mean_sev,   # Valores observados (0 ou 1)
+  Predicted = final_results$predicted            # Probabilidades preditas pelo modelo
+)
+
+dat_rf_05 %>% 
+  ggplot(aes(Observed, Predicted))+
+  geom_point()+
+  geom_smooth(method = "lm", se = F)
+```
+
+```{r}
+library(mgcv)
+library(MuMIn)
+install.packages("MuMIn")
+weather_data$year1 <- as.numeric(factor(weather_data$year))
+modelo <- gam( mean_sev  ~s(RH2M, k = 10) + s(T2M_MAX, k = 10) +s(T2M_MIN, k = 10) + s(DPD, k = 10) + s(lat, k = 10) + s(lon, k = 10) + s(year1, k = 10), family = betar(), data = weather_data ) 
+
+
+modelo <- gam(
+  mean_sev  ~s(days, k = 10,bs='ad') + s(RH2M, k = 10,bs='ad') + s(T2M_MAX, k = 10,bs='ad') +s(T2M_MIN, k = 10,bs='ad') + s(PRECTOTCORR, k = 10,bs='ad')+ s(DPD, k = 10,bs='ad') + s(lat, k = 10,bs='ad') + s(lon, k = 10,bs='ad') + s(year1, k = 10,bs='ad'),
+  family = betar(),
+  data = weather_data
+)
+
+summary(modelo)
+k.check(modelo)
+gam.check(modelo)
+plot(modelo, select = 7)
+vis.gam(modelo, view = c("DPD","T2M_MIN"), plot.type = "contour")
+plot(modelo, residuals = TRUE)
+```
+
+```{r}
+modelo2 <- gam(
+  mean_sev~s(RH2M, k = 9,bs='fs', m = 1) + s(T2M_MAX, k = 9,bs='fs', m = 1) +s(T2M_MIN, k = 9,bs='fs', m = 1) + s(lat, k = 9,bs='fs', m = 1) + s(lon, k = 9,bs='fs', m = 1) + s(year1, k = 9,bs='fs', m = 1) + s(PRECTOTCORR, k = 9, bs = "fs", m = 1),
+  family = betar(),
+  data = weather_data,
+  method = "REML")
+
+# Crie a grade de valores para interpolação
+new_data <- expand.grid(
+  RH2M = seq(min(weather_data$RH2M, na.rm = TRUE), max(weather_data$RH2M, na.rm = TRUE), length.out = 10),
+  T2M_MAX = seq(min(weather_data$T2M_MAX, na.rm = TRUE), max(weather_data$T2M_MAX, na.rm = TRUE), length.out = 10),
+  T2M_MIN = seq(min(weather_data$T2M_MIN, na.rm = TRUE), max(weather_data$T2M_MIN, na.rm = TRUE), length.out = 10),
+  lat = seq(min(weather_data$lat, na.rm = TRUE), max(weather_data$lat, na.rm = TRUE), length.out = 10),
+  lon = seq(min(weather_data$lon, na.rm = TRUE), max(weather_data$lon, na.rm = TRUE), length.out = 10),
+  year1 = seq(min(weather_data$year1, na.rm = TRUE), max(weather_data$year1, na.rm = TRUE), length.out = 10),
+  PRECTOTCORR = seq(min(weather_data$PRECTOTCORR, na.rm = TRUE), max(weather_data$PRECTOTCORR, na.rm = TRUE), length.out = 10)
+)
+
+gc()
+
+new_data$predicted <- predict(modelo2, newdata = new_data, type = "response")
+
+gc()
+
+new_data2 = new_data %>% 
+  group_by(year1) %>% 
+  summarise(
+    
+    RH2M = mean(RH2M),
+    T2M_MAX = mean(T2M_MAX),
+    predicted = mean(predicted)
+  )
+
+
+ggplot(new_data, aes(x = year1, y = T2M_MIN, fill = predicted)) +
+  geom_tile() +
+  scale_fill_viridis_d(option = "C") + # Mapa de cores (ou escolha outra paleta)
+  labs(
+    title = "Efeito Conjunto: RH2M e days_difference",
+    x = "RH2M",
+    y = "days_difference",
+    fill = "Severidade"
+  ) +
+  theme_minimal()
+```

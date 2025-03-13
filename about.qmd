@@ -1,0 +1,2224 @@
+---
+title: "About"
+---
+
+# Packages
+
+```{r}
+
+library(dplyr)
+library(purrr)
+library(gsheet)
+library(raster)
+library(ncdf4)
+library(lubridate)
+library(readxl)
+library(writexl)
+library(tidyverse)
+library(ggplot2)
+library(INLA)
+library(caret)
+
+```
+
+```{r}
+ma2 <- gsheet2tbl("https://docs.google.com/spreadsheets/d/1j0WZXtJsSMN1MAbmkppnCMnr5d9LnsxV/edit?usp=sharing&ouid=112586075609758894128&rtpof=true&sd=true")
+```
+
+### Precipitation
+
+```{r,eval = FALSE, echo = TRUE}
+
+# 1. Lendo a planilha de municípios com data de plantio
+ma2 <- gsheet2tbl("https://docs.google.com/spreadsheets/d/1j0WZXtJsSMN1MAbmkppnCMnr5d9LnsxV/edit?usp=sharing&ouid=112586075609758894128&rtpof=true&sd=true")
+ma2_df <- as.data.frame(ma2)
+ma2_df$planting_date <- as.Date(ma2_df$planting_date, format = "%Y-%m-%d")
+
+# 2. Adicionando colunas para 90 dias antes e depois da data de plantio
+ma3 <- ma2_df %>%
+  mutate(
+    pd_minus90 = planting_date - 90,  # 90 dias antes do plantio
+    pd90 = planting_date + 90         # 90 dias após o plantio
+  )
+
+# 3. Caminho para o arquivo NetCDF
+netcdf_path <- "C:/Users/ricar/Documents/Extract_Xavier/code/data/pr_20010101_20240320_BR-DWGD_UFES_UTEXAS_v_3.2.3.nc"
+
+# 4. Função para verificar e interpretar as datas no NetCDF considerando "hours since"
+get_nc_dates <- function(netcdf_path) {
+  nc_data <- nc_open(netcdf_path)
+  
+  # Lendo a variável de tempo e sua unidade
+  time_var <- ncvar_get(nc_data, "time")
+  time_units <- ncatt_get(nc_data, "time", "units")$value
+  print(paste("Unidade de tempo no NetCDF:", time_units))
+  
+  # Extraindo a origem da unidade de tempo e verificando o formato
+  if (grepl("hours since", time_units)) {
+    origin_date <- as.POSIXct(sub("hours since ", "", time_units), tz = "UTC")
+    nc_dates <- origin_date + as.difftime(time_var, units = "hours")
+  } else {
+    stop("Unidade de tempo inesperada:", time_units)
+  }
+  
+  # Fechando o arquivo NetCDF
+  nc_close(nc_data)
+  
+  return(as.Date(nc_dates))
+}
+
+# 5. Chamando a função para obter as datas
+nc_dates <- get_nc_dates(netcdf_path)
+
+# 6. Função para extrair dados do NetCDF para uma linha
+get_br_dwgd_data <- function(row, line_number, netcdf_path, nc_dates) {
+  # Abrindo o arquivo NetCDF
+  nc_data <- nc_open(netcdf_path)
+  
+  # Extraindo variáveis de interesse
+  lon <- row$lon
+  lat <- row$lat
+  start_date <- row$pd_minus90  # Início: 90 dias antes do plantio
+  end_date <- row$pd90          # Fim: 90 dias após o plantio
+
+  # Gerando sequência de datas e comparando com o NetCDF
+  date_seq <- seq.Date(start_date, end_date, by = "day")
+  date_indices <- match(date_seq, nc_dates)
+
+  # Removendo índices de datas inexistentes
+  date_indices <- date_indices[!is.na(date_indices)]
+  
+  # Caso não haja datas válidas, retornar NULL
+  if (length(date_indices) == 0) {
+    message("Nenhuma data correspondente encontrada para linha ", line_number, " (", row$location, ")")
+    nc_close(nc_data)
+    return(NULL)
+  }
+
+  # Extraindo dados de precipitação para as coordenadas e datas específicas
+  lon_idx <- which.min(abs(ncvar_get(nc_data, "longitude") - lon))
+  lat_idx <- which.min(abs(ncvar_get(nc_data, "latitude") - lat))
+
+  precip_data <- sapply(date_indices, function(i) {
+    ncvar_get(nc_data, "pr", start = c(lon_idx, lat_idx, i), count = c(1, 1, 1))
+  })
+
+  # Fechando o arquivo NetCDF
+  nc_close(nc_data)
+  
+  # Se a extração de precip_data não retornar dados, retornar NULL
+  if (length(precip_data) == 0 || all(is.na(precip_data))) {
+    message("Nenhum dado de precipitação encontrado para linha ", line_number, " (", row$location, ")")
+    return(NULL)
+  }
+
+  # Criando um dataframe com os resultados e informações adicionais
+  result <- data.frame(
+    date = date_seq[!is.na(date_indices)],
+    precipitation = precip_data,
+    study = row$study,
+    location = row$location,
+    state = row$state,
+    year = format(row$planting_date, "%Y"),
+    planting_date = row$planting_date,
+    mean_sev = row$mean_sev,
+    lat = row$lat,
+    lon = row$lon,
+    level = row$level
+  )
+  
+  return(result)
+}
+
+# 7. Iterando pelas linhas da planilha e extraindo os dados do NetCDF
+box <- ma3 %>%
+  split(1:nrow(.)) %>%
+  map2_dfr(1:nrow(ma3), ~ get_br_dwgd_data(.x, .y, netcdf_path, nc_dates), .id = "id")
+
+# 8. Visualizando o resultado final
+print(box)
+
+# 9. Salvando o resultado em um arquivo Excel
+#write_xlsx(box, "data/br_dwgd_prec.xlsx")
+
+
+```
+
+```{r,eval = FALSE, echo = TRUE}
+prec = read_xlsx("data/br_dwgd_prec.xlsx")
+unique(prec$year)
+
+prec = prec %>% 
+  filter(!state %in% c("SP"))
+
+prec$date = as.Date(prec$date)
+prec$study = as.factor(prec$study)
+prec$planting_date = as.Date(prec$planting_date)
+# Suponha que seu dataframe 'ma4' já está carregado e que a coluna 'days' está corretamente calculada
+prec <- prec %>%
+  mutate(
+    days =as.numeric(date - planting_date))# %>%
+  #filter(days >= 0)
+
+
+```
+
+### Maximum temperature
+
+```{r,eval = FALSE, echo = TRUE}
+
+library(dplyr)
+library(ncdf4)
+library(purrr)
+library(readr)
+library(writexl)
+
+# 1. Lendo a planilha de municípios com data de plantio
+ma2 <- gsheet2tbl("https://docs.google.com/spreadsheets/d/1j0WZXtJsSMN1MAbmkppnCMnr5d9LnsxV/edit?usp=sharing&ouid=112586075609758894128&rtpof=true&sd=true")
+ma2_df <- as.data.frame(ma2)
+ma2_df$planting_date <- as.Date(ma2_df$planting_date, format = "%Y-%m-%d")
+
+# 2. Adicionando colunas para 90 dias antes e depois da data de plantio
+ma3 <- ma2_df %>%
+  mutate(
+    pd_minus90 = planting_date - 90,  # 90 dias antes do plantio
+    pd90 = planting_date + 90         # 90 dias após o plantio
+  )
+
+# 3. Caminho para o arquivo NetCDF
+netcdf_path <- "C:/Users/ricar/Documents/Extract_Xavier/code/data/Tmax_20010101_20240320_BR-DWGD_UFES_UTEXAS_v_3.2.3.nc"
+
+# 4. Função para verificar e interpretar as datas no NetCDF considerando "hours since"
+get_nc_dates <- function(netcdf_path) {
+  nc_data <- nc_open(netcdf_path)
+  
+  # Lendo a variável de tempo e sua unidade
+  time_var <- ncvar_get(nc_data, "time")
+  time_units <- ncatt_get(nc_data, "time", "units")$value
+  print(paste("Unidade de tempo no NetCDF:", time_units))
+  
+  # Extraindo a origem da unidade de tempo e verificando o formato
+  if (grepl("hours since", time_units)) {
+    origin_date <- as.POSIXct(sub("hours since ", "", time_units), tz = "UTC")
+    nc_dates <- origin_date + as.difftime(time_var, units = "hours")
+  } else {
+    stop("Unidade de tempo inesperada:", time_units)
+  }
+  
+  # Fechando o arquivo NetCDF
+  nc_close(nc_data)
+  
+  return(as.Date(nc_dates))
+}
+
+# 5. Chamando a função para obter as datas
+nc_dates <- get_nc_dates(netcdf_path)
+
+# 6. Função para extrair dados do NetCDF para uma linha
+get_br_dwgd_data <- function(row, line_number, netcdf_path, nc_dates) {
+  # Abrindo o arquivo NetCDF
+  nc_data <- nc_open(netcdf_path)
+  
+  # Extraindo variáveis de interesse
+  lon <- row$lon
+  lat <- row$lat
+  start_date <- row$pd_minus90  # Início: 90 dias antes do plantio
+  end_date <- row$pd90          # Fim: 90 dias após o plantio
+
+  # Gerando sequência de datas e comparando com o NetCDF
+  date_seq <- seq.Date(start_date, end_date, by = "day")
+  date_indices <- match(date_seq, nc_dates)
+
+  # Removendo índices de datas inexistentes
+  date_indices <- date_indices[!is.na(date_indices)]
+  
+  # Caso não haja datas válidas, retornar NULL
+  if (length(date_indices) == 0) {
+    message("Nenhuma data correspondente encontrada para linha ", line_number, " (", row$location, ")")
+    nc_close(nc_data)
+    return(NULL)
+  }
+
+  # Extraindo dados de Tmax para as coordenadas e datas específicas
+  lon_idx <- which.min(abs(ncvar_get(nc_data, "longitude") - lon))
+  lat_idx <- which.min(abs(ncvar_get(nc_data, "latitude") - lat))
+
+  tmax_data <- sapply(date_indices, function(i) {
+    ncvar_get(nc_data, "Tmax", start = c(lon_idx, lat_idx, i), count = c(1, 1, 1))
+  })
+
+  # Fechando o arquivo NetCDF
+  nc_close(nc_data)
+  
+  # Se a extração de tmax_data não retornar dados, retornar NULL
+  if (length(tmax_data) == 0 || all(is.na(tmax_data))) {
+    message("Nenhum dado de Tmax encontrado para linha ", line_number, " (", row$location, ")")
+    return(NULL)
+  }
+
+  # Criando um dataframe com os resultados e informações adicionais
+  result <- data.frame(
+    date = date_seq[!is.na(date_indices)],
+    tmax = tmax_data,
+    study = row$study,
+    location = row$location,
+    state = row$state,
+    year = format(row$planting_date, "%Y"),
+    planting_date = row$planting_date,
+    mean_sev = row$mean_sev,
+    lat = row$lat,
+    lon = row$lon,
+    level = row$level
+  )
+  
+  return(result)
+}
+
+# 7. Iterando pelas linhas da planilha e extraindo os dados do NetCDF
+box <- ma3 %>%
+  split(1:nrow(.)) %>%
+  map2_dfr(1:nrow(ma3), ~ get_br_dwgd_data(.x, .y, netcdf_path, nc_dates), .id = "id")
+
+# 8. Visualizando o resultado final
+print(box)
+
+# 9. Salvando o resultado em um arquivo Excel
+write_xlsx(box, "data/br_dwgd_tmax.xlsx")
+
+
+```
+
+```{r,eval = FALSE, echo = TRUE}
+
+tmax = read_xlsx("data/br_dwgd_tmax.xlsx")
+
+tmax = tmax %>% 
+  filter(!state %in% c("SP"))
+
+tmax$date = as.Date(tmax$date)
+tmax$study = as.factor(tmax$study)
+tmax$planting_date = as.Date(tmax$planting_date)
+# Suponha que seu dataframe 'ma4' já está carregado e que a coluna 'days' está corretamente calculada
+tmax <- tmax %>%
+  mutate(
+    days =as.numeric(date - planting_date)
+  )
+
+```
+
+### Minimum temperature
+
+```{r,eval = FALSE, echo = TRUE}
+
+library(dplyr)
+library(ncdf4)
+library(purrr)
+library(readr)
+library(writexl)
+
+# 1. Lendo a planilha de municípios com data de plantio
+ma2 <- gsheet2tbl("https://docs.google.com/spreadsheets/d/1j0WZXtJsSMN1MAbmkppnCMnr5d9LnsxV/edit?usp=sharing&ouid=112586075609758894128&rtpof=true&sd=true")
+ma2_df <- as.data.frame(ma2)
+ma2_df$planting_date <- as.Date(ma2_df$planting_date, format = "%Y-%m-%d")
+
+# 2. Adicionando colunas para 90 dias antes e depois da data de plantio
+ma3 <- ma2_df %>%
+  mutate(
+    pd_minus90 = planting_date - 90,  # 90 dias antes do plantio
+    pd90 = planting_date + 90         # 90 dias após o plantio
+  )
+
+# 3. Caminho para o arquivo NetCDF
+netcdf_path <- "C:/Users/ricar/Documents/Extract_Xavier/code/data/Tmin_20010101_20240320_BR-DWGD_UFES_UTEXAS_v_3.2.3.nc"
+
+# 4. Função para verificar e interpretar as datas no NetCDF considerando "hours since"
+get_nc_dates <- function(netcdf_path) {
+  nc_data <- nc_open(netcdf_path)
+  
+  # Lendo a variável de tempo e sua unidade
+  time_var <- ncvar_get(nc_data, "time")
+  time_units <- ncatt_get(nc_data, "time", "units")$value
+  print(paste("Unidade de tempo no NetCDF:", time_units))
+  
+  # Extraindo a origem da unidade de tempo e verificando o formato
+  if (grepl("hours since", time_units)) {
+    origin_date <- as.POSIXct(sub("hours since ", "", time_units), tz = "UTC")
+    nc_dates <- origin_date + as.difftime(time_var, units = "hours")
+  } else {
+    stop("Unidade de tempo inesperada:", time_units)
+  }
+  
+  # Fechando o arquivo NetCDF
+  nc_close(nc_data)
+  
+  return(as.Date(nc_dates))
+}
+
+# 5. Chamando a função para obter as datas
+nc_dates <- get_nc_dates(netcdf_path)
+
+# 6. Função para extrair dados do NetCDF para uma linha
+get_br_dwgd_data <- function(row, line_number, netcdf_path, nc_dates) {
+  # Abrindo o arquivo NetCDF
+  nc_data <- nc_open(netcdf_path)
+  
+  # Extraindo variáveis de interesse
+  lon <- row$lon
+  lat <- row$lat
+  start_date <- row$pd_minus90  # Início: 90 dias antes do plantio
+  end_date <- row$pd90          # Fim: 90 dias após o plantio
+
+  # Gerando sequência de datas e comparando com o NetCDF
+  date_seq <- seq.Date(start_date, end_date, by = "day")
+  date_indices <- match(date_seq, nc_dates)
+
+  # Removendo índices de datas inexistentes
+  date_indices <- date_indices[!is.na(date_indices)]
+  
+  # Caso não haja datas válidas, retornar NULL
+  if (length(date_indices) == 0) {
+    message("Nenhuma data correspondente encontrada para linha ", line_number, " (", row$location, ")")
+    nc_close(nc_data)
+    return(NULL)
+  }
+
+  # Extraindo dados de Tmin para as coordenadas e datas específicas
+  lon_idx <- which.min(abs(ncvar_get(nc_data, "longitude") - lon))
+  lat_idx <- which.min(abs(ncvar_get(nc_data, "latitude") - lat))
+
+  tmin_data <- sapply(date_indices, function(i) {
+    ncvar_get(nc_data, "Tmin", start = c(lon_idx, lat_idx, i), count = c(1, 1, 1))
+  })
+
+  # Fechando o arquivo NetCDF
+  nc_close(nc_data)
+  
+  # Se a extração de tmin_data não retornar dados, retornar NULL
+  if (length(tmin_data) == 0 || all(is.na(tmin_data))) {
+    message("Nenhum dado de Tmin encontrado para linha ", line_number, " (", row$location, ")")
+    return(NULL)
+  }
+
+  # Criando um dataframe com os resultados e informações adicionais
+  result <- data.frame(
+    date = date_seq[!is.na(date_indices)],
+    tmin = tmin_data,
+    study = row$study,
+    location = row$location,
+    state = row$state,
+    year = format(row$planting_date, "%Y"),
+    planting_date = row$planting_date,
+    mean_sev = row$mean_sev,
+    lat = row$lat,
+    lon = row$lon,
+    level = row$level
+  )
+  
+  return(result)
+}
+
+# 7. Iterando pelas linhas da planilha e extraindo os dados do NetCDF
+box <- ma3 %>%
+  split(1:nrow(.)) %>%
+  map2_dfr(1:nrow(ma3), ~ get_br_dwgd_data(.x, .y, netcdf_path, nc_dates), .id = "id")
+
+# 8. Visualizando o resultado final
+print(box)
+
+# 9. Salvando o resultado em um arquivo Excel
+write_xlsx(box, "data/br_dwgd_tmin.xlsx")
+
+
+```
+
+```{r,eval = FALSE, echo = TRUE}
+
+tmin = read_xlsx("data/br_dwgd_tmin.xlsx")
+
+tmin = tmin %>% 
+  filter(!state %in% c("SP"))
+
+tmin$date = as.Date(tmin$date)
+tmin$study = as.factor(tmin$study)
+tmin$planting_date = as.Date(tmin$planting_date)
+# Suponha que seu dataframe 'ma4' já está carregado e que a coluna 'days' está corretamente calculada
+tmin <- tmin %>%
+  mutate(
+    days =as.numeric(date - planting_date)
+  )
+```
+
+### Relative humidity
+
+```{r,eval = FALSE, echo = TRUE}
+
+library(dplyr)
+library(ncdf4)
+library(purrr)
+library(readr)
+library(writexl)
+
+# 1. Lendo a planilha de municípios com data de plantio
+ma2 <- gsheet2tbl("https://docs.google.com/spreadsheets/d/1j0WZXtJsSMN1MAbmkppnCMnr5d9LnsxV/edit?usp=sharing&ouid=112586075609758894128&rtpof=true&sd=true")
+ma2_df <- as.data.frame(ma2)
+ma2_df$planting_date <- as.Date(ma2_df$planting_date, format = "%Y-%m-%d")
+
+# 2. Adicionando colunas para 90 dias antes e depois da data de plantio
+ma3 <- ma2_df %>%
+  mutate(
+    pd_minus90 = planting_date - 90,  # 90 dias antes do plantio
+    pd90 = planting_date + 90         # 90 dias após o plantio
+  )
+
+# 3. Caminho para o arquivo NetCDF
+netcdf_path <- "C:/Users/ricar/Documents/Extract_Xavier/code/data/RH_20010101_20240320_BR-DWGD_UFES_UTEXAS_v_3.2.3.nc"
+
+# 4. Função para verificar e interpretar as datas no NetCDF considerando "hours since"
+get_nc_dates <- function(netcdf_path) {
+  nc_data <- nc_open(netcdf_path)
+  
+  # Lendo a variável de tempo e sua unidade
+  time_var <- ncvar_get(nc_data, "time")
+  time_units <- ncatt_get(nc_data, "time", "units")$value
+  print(paste("Unidade de tempo no NetCDF:", time_units))
+  
+  # Extraindo a origem da unidade de tempo e verificando o formato
+  if (grepl("hours since", time_units)) {
+    origin_date <- as.POSIXct(sub("hours since ", "", time_units), tz = "UTC")
+    nc_dates <- origin_date + as.difftime(time_var, units = "hours")
+  } else {
+    stop("Unidade de tempo inesperada:", time_units)
+  }
+  
+  # Fechando o arquivo NetCDF
+  nc_close(nc_data)
+  
+  return(as.Date(nc_dates))
+}
+
+# 5. Chamando a função para obter as datas
+nc_dates <- get_nc_dates(netcdf_path)
+
+# 6. Função para extrair dados do NetCDF para uma linha
+get_br_dwgd_data <- function(row, line_number, netcdf_path, nc_dates) {
+  # Abrindo o arquivo NetCDF
+  nc_data <- nc_open(netcdf_path)
+  
+  # Extraindo variáveis de interesse
+  lon <- row$lon
+  lat <- row$lat
+  start_date <- row$pd_minus90  # Início: 90 dias antes do plantio
+  end_date <- row$pd90          # Fim: 90 dias após o plantio
+
+  # Gerando sequência de datas e comparando com o NetCDF
+  date_seq <- seq.Date(start_date, end_date, by = "day")
+  date_indices <- match(date_seq, nc_dates)
+
+  # Removendo índices de datas inexistentes
+  date_indices <- date_indices[!is.na(date_indices)]
+  
+  # Caso não haja datas válidas, retornar NULL
+  if (length(date_indices) == 0) {
+    message("Nenhuma data correspondente encontrada para linha ", line_number, " (", row$location, ")")
+    nc_close(nc_data)
+    return(NULL)
+  }
+
+  # Extraindo dados de RH para as coordenadas e datas específicas
+  lon_idx <- which.min(abs(ncvar_get(nc_data, "longitude") - lon))
+  lat_idx <- which.min(abs(ncvar_get(nc_data, "latitude") - lat))
+
+  rh_data <- sapply(date_indices, function(i) {
+    ncvar_get(nc_data, "RH", start = c(lon_idx, lat_idx, i), count = c(1, 1, 1))
+  })
+
+  # Fechando o arquivo NetCDF
+  nc_close(nc_data)
+  
+  # Se a extração de rh_data não retornar dados, retornar NULL
+  if (length(rh_data) == 0 || all(is.na(rh_data))) {
+    message("Nenhum dado de RH encontrado para linha ", line_number, " (", row$location, ")")
+    return(NULL)
+  }
+
+  # Criando um dataframe com os resultados e informações adicionais
+  result <- data.frame(
+    date = date_seq[!is.na(date_indices)],
+    rh = rh_data,
+    study = row$study,
+    location = row$location,
+    state = row$state,
+    year = format(row$planting_date, "%Y"),
+    planting_date = row$planting_date,
+    mean_sev = row$mean_sev,
+    lat = row$lat,
+    lon = row$lon,
+    level = row$level
+  )
+  
+  return(result)
+}
+
+# 7. Iterando pelas linhas da planilha e extraindo os dados do NetCDF
+box <- ma3 %>%
+  split(1:nrow(.)) %>%
+  map2_dfr(1:nrow(ma3), ~ get_br_dwgd_data(.x, .y, netcdf_path, nc_dates), .id = "id")
+
+# 8. Visualizando o resultado final
+print(box)
+
+# 9. Salvando o resultado em um arquivo Excel
+write_xlsx(box, "data/br_dwgd_rh.xlsx")
+
+```
+
+```{r,eval = FALSE, echo = TRUE}
+rh = read_xlsx("data/br_dwgd_rh.xlsx")
+
+rh = rh %>% 
+  filter(!state %in% c("SP"))
+
+rh$date = as.Date(rh$date)
+rh$study = as.factor(rh$study)
+rh$planting_date = as.Date(rh$planting_date)
+# Suponha que seu dataframe 'ma4' já está carregado e que a coluna 'days' está corretamente calculada
+rh <- rh %>%
+  mutate(
+    days =as.numeric(date - planting_date)
+  )
+
+rh
+```
+
+# Joining
+
+```{r,eval = FALSE, echo = TRUE}
+weather_data = prec
+
+weather_data$rh = rh$rh
+weather_data$tmax = tmax$tmax
+weather_data$tmin = tmin$tmin
+
+weather_data[,3] = NULL
+
+weather_data$prec = prec$precipitation
+```
+
+```{r,eval = FALSE, echo = TRUE}
+colnames(weather_data) = c("id","wd90", "study","location","state","year","planting_date","mean_sev","lat","lon","level","days","RH2M","T2M_MAX","T2M_MIN","PRECTOTCORR")
+```
+
+```{r}
+#write_xlsx(weather_data, "data/weather_data.xlsx")
+
+weather_data = read_xlsx("data/weather_data.xlsx")
+weather_data$mean_sev = weather_data$mean_sev/100
+#weather_data <- read_xlsx("data/weather_nasa.xlsx")
+```
+
+```{r}
+weather_data = weather_data %>% 
+  mutate(T2M = (T2M_MAX+T2M_MIN)/2) #%>% 
+  #mutate(DPD = T2M - ((112 + 0.9*T2M)*RH2M^0.125 - 112 + 0.1*T2M))
+
+
+# Parâmetros da equação de Magnus-Tetens
+a <- 17.27
+b <- 237.7
+
+# Cálculo do ponto de orvalho (Td)
+alpha <- (a * weather_data$T2M) / (b + weather_data$T2M) + log(weather_data$RH2M / 100)
+weather_data$Td <- (b * alpha) / (a - alpha)
+
+# Cálculo do DPD
+weather_data$DPD <- weather_data$T2M - weather_data$Td
+
+```
+
+
+# Windown sowing
+```{r}
+weather_data$planting_date = as.Date(weather_data$planting_date)
+
+weather_data <- weather_data %>%
+  mutate(
+    # Criando a data permitida diretamente com base no estado
+    allowed_date = case_when(
+      state == "MT" ~ as.Date(paste0(format(planting_date, "%Y"), "-09-16")), 
+      state == "MS" ~ as.Date(paste0(format(planting_date, "%Y"), "-09-16")),
+      state == "GO" ~ as.Date(paste0(format(planting_date, "%Y"), "-09-25")),
+      state == "PR" ~ as.Date(paste0(format(planting_date, "%Y"), "-09-11")),
+      state == "TO" ~ as.Date(paste0(format(planting_date, "%Y"), "-10-01")),
+      state == "DF" ~ as.Date(paste0(format(planting_date, "%Y"), "-10-01")),
+      state == "BA" ~ as.Date(paste0(format(planting_date, "%Y"), "-10-01")),
+      state == "MG" ~ as.Date(paste0(format(planting_date, "%Y"), "-10-01")) 
+    ),
+    # Ajustando o ano da allowed_date para casos de janeiro e fevereiro
+    allowed_date = if_else(
+      format(planting_date, "%m") %in% c("01", "02"), 
+      as.Date(paste0(as.numeric(format(planting_date, "%Y")) - 1, "-", format(allowed_date, "%m-%d"))),
+      allowed_date
+    ),
+    # Calculando a diferença em dias
+    days_difference = as.numeric(planting_date - allowed_date)
+  )
+
+
+# Visualizar resultado
+print(weather_data)
+
+weather_data$year1 <- as.numeric(factor(weather_data$year))
+weather_data$state1 <- as.numeric(factor(weather_data$state))
+weather_data$location1 <- as.numeric(factor(weather_data$location))
+weather_data$level1 <- as.numeric(factor(weather_data$level))
+
+weather_data %>% 
+  filter(days_difference < 0)
+
+unique(weather_data$level1)
+
+weather_data %>% 
+  ggplot(aes(days_difference))+
+  geom_histogram()
+```
+
+# Distribution
+
+```{r}
+
+# RH2M
+
+RH2M_day <- weather_data %>%
+  filter(!state =="SP") %>% 
+  filter(days >= 0 & days <= 80) %>% 
+  group_by(days) %>%
+  summarise(mean_RH2M = mean(RH2M, na.rm = TRUE),
+            up_95 = quantile(RH2M, 0.975),
+            low_95 = quantile(RH2M, 0.025))
+
+RH2M_g = weather_data %>% 
+  filter(!state =="SP") %>%
+  ggplot()+ ##b4e4c0
+  geom_smooth(aes(days,RH2M, group = id),se = F, color = "darkgreen", size = .8, size = 1.0)+
+  geom_smooth(data = RH2M_day, aes(x = days, y = mean_RH2M), color = "black", size = 1.4)+
+ geom_smooth(data = RH2M_day, aes(x = days, y = up_95), color = "black", size = 1.2, linetype = "dashed", se = F)+
+ geom_smooth(data = RH2M_day, aes(x = days, y = low_95), 
+             color = "black", size = 1.2, linetype = "dashed", se = F)+
+  scale_x_continuous(breaks = c(0, 20, 40, 60, 80), limits = c(0, 80))+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 10),
+        axis.title = element_text(face = "bold", size = 12))+
+  labs(x = "Days",
+       y = "Humidity (%)")
+
+
+# T2M_MAX
+
+T2M_MAX_day <- weather_data %>%
+  filter(!state =="SP") %>%
+  filter(days >= 0 & days <= 80) %>%
+  group_by(days) %>%
+  summarise(mean_T2M_MAX = mean(T2M_MAX, na.rm = TRUE),
+            up_95 = quantile(T2M_MAX, 0.975),
+            low_95 = quantile(T2M_MAX, 0.025))
+
+T2M_MAX_g = weather_data %>% 
+  filter(!state =="SP") %>%
+  ggplot()+
+  geom_smooth(aes(days,T2M_MAX, group = id),se = F, color = "grey", size = .8)+
+  geom_smooth(data = T2M_MAX_day, aes(x = days, y = mean_T2M_MAX), color = "black", size = 2)+
+ geom_smooth(data = T2M_MAX_day, aes(x = days, y = up_95), color = "black", size = 1.4, linetype = "dashed", se = F)+
+ geom_smooth(data = T2M_MAX_day, aes(x = days, y = low_95), 
+             color = "black", size = 1.4, linetype = "dashed", se = F)+
+  scale_x_continuous(breaks = c(0, 20, 40, 60, 80), limits = c(0, 80))+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 10, face = "bold"))+
+  labs(x = "Days",
+       y = "Max (°C)")
+
+
+# T2M_MIN
+
+T2M_MIN_day <- weather_data %>%
+  filter(!state =="SP") %>%
+  filter(days >= 0 & days <= 80) %>%
+  group_by(days) %>%
+  summarise(mean_T2M_MIN = mean(T2M_MIN, na.rm = TRUE),
+            up_95 = quantile(T2M_MIN, 0.975),
+            low_95 = quantile(T2M_MIN, 0.025))
+
+T2M_MIN_g = weather_data %>% 
+  filter(!state =="SP") %>%
+  ggplot()+
+  geom_smooth(aes(days,T2M_MIN, group = id),se = F, color = "grey", size = .8)+
+  geom_smooth(data = T2M_MIN_day, aes(x = days, y = mean_T2M_MIN), color = "black", size = 2)+
+ geom_smooth(data = T2M_MIN_day, aes(x = days, y = up_95), color = "black", size = 1.4, linetype = "dashed", se = F)+
+ geom_smooth(data = T2M_MIN_day, aes(x = days, y = low_95), 
+             color = "black", size = 1.4, linetype = "dashed", se = F)+
+  scale_x_continuous(breaks = c(0, 20, 40, 60, 80), limits = c(0, 80))+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 10, face = "bold"))+
+  labs(x = "Days",
+       y = "Min (°C)")
+
+
+# T2M
+
+T2M_day <- weather_data %>%
+  filter(!state =="SP") %>%
+  filter(days >= 0 & days <= 80) %>%
+  group_by(days) %>%
+  summarise(mean_T2M = mean(T2M, na.rm = TRUE),
+            up_95 = quantile(T2M, 0.975),
+            low_95 = quantile(T2M, 0.025))
+
+
+T2M_g = weather_data %>% 
+  filter(!state =="SP") %>%
+  ggplot()+
+  geom_smooth(aes(days,T2M, group = id),se = F, color = "#ca5858", size = .8,, size = 1.0)+
+  geom_smooth(data = T2M_day, aes(x = days, y = mean_T2M), color = "black", size = 1.4)+
+ geom_smooth(data = T2M_day, aes(x = days, y = up_95), color = "black", size = 1.2, linetype = "dashed", se = F)+
+ geom_smooth(data = T2M_day, aes(x = days, y = low_95), 
+             color = "black", size = 1.2, linetype = "dashed", se = F)+
+  scale_x_continuous(breaks = c(0, 20, 40, 60, 80), limits = c(0, 80))+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 10),
+        axis.title = element_text(face = "bold", size = 12))+
+  labs(x = "Days",
+       y = "Temperature (°C)")
+
+# Rain
+
+PRECTOTCORR_day <- weather_data %>%
+  filter(!state =="SP") %>%
+  filter(days >= 0 & days <= 80) %>%
+  group_by(days) %>%
+  summarise(mean_PRECTOTCORR = mean(PRECTOTCORR, na.rm = TRUE),
+            up_95 = quantile(PRECTOTCORR, 0.975),
+            low_95 = quantile(PRECTOTCORR, 0.025))
+
+RAIN_g = weather_data %>% 
+  filter(!state =="SP") %>%
+  ggplot()+
+  geom_smooth(aes(days,PRECTOTCORR, group = id),se = F, color = "#6280bc", size = .8, size = 1.0)+
+geom_smooth(data = PRECTOTCORR_day, aes(x = days, y = mean_PRECTOTCORR), 
+            color = "black", size = 1.4)+
+ geom_smooth(data = PRECTOTCORR_day, aes(x = days, y = up_95),
+             color = "black", size = 1.2, linetype = "dashed", se = F)+
+ geom_smooth(data = PRECTOTCORR_day, aes(x = days, y = low_95), 
+             color = "black", size = 1.2, linetype = "dashed", se = F)+
+  scale_x_continuous(breaks = c(0, 20, 40, 60, 80), limits = c(0, 80))+
+    coord_cartesian(ylim = c(0, NA)) + 
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 10),
+        axis.title = element_text(face = "bold", size = 12))+
+  labs(x = "Days",
+       y = "Rain (mm)")
+
+
+# DPD
+
+DPD_day <- weather_data %>%
+  filter(!state =="SP") %>%
+  filter(days >= 0 & days <= 80) %>%
+  group_by(days) %>%
+  summarise(mean_DPD = mean(DPD, na.rm = TRUE),
+            up_95 = quantile(DPD, 0.975),
+            low_95 = quantile(DPD, 0.025))
+
+DPD_g = weather_data %>% 
+  filter(days >= 0 & days <= 80) %>%
+  filter(!state =="SP") %>%
+  ggplot()+
+  geom_smooth(aes(days,DPD, group = id),se = F, color = "grey", size = .8)+
+  geom_smooth(data = DPD_day, aes(x = days, y = mean_DPD), color = "black", size = 2)+
+ geom_smooth(data = DPD_day, aes(x = days, y = up_95),
+             color = "black", size = 1.4, linetype = "dashed", se = F)+
+ geom_smooth(data = DPD_day, aes(x = days, y = low_95), 
+             color = "black", size = 1.4, linetype = "dashed", se = F)+
+  scale_x_continuous(breaks = c(0, 20, 40, 60, 80), limits = c(0, 80))+
+    #coord_cartesian(ylim = c(0, NA)) + 
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 10, face = "bold"))+
+  labs(x = "Days",
+       y = "DPD (°C)")
+
+
+# Days
+
+DAYS_g = weather_data %>% 
+  filter(!state =="SP") %>%
+  filter(days >= 0 & days <= 80) %>%
+  ggplot(aes(days_difference))+
+  geom_histogram(fill = "#002f61", color = "white", bins = 12)+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 10),
+        axis.title = element_text(face = "bold", size = 12))+
+  labs(x = "Days",
+       y = "Frequency")
+
+
+# Lat
+
+LAT_g = weather_data %>% 
+  filter(!state =="SP") %>%
+  ggplot(aes(lat))+
+  geom_histogram(fill = "#002f61", color = "white", bins = 12)+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 10),
+        axis.title = element_text(face = "bold", size = 12))+
+  labs(x = "Latitude",
+       y = "")
+
+
+# Lon
+
+LON_g = weather_data %>% 
+  filter(!state =="SP") %>%
+  ggplot(aes(lon))+
+  geom_histogram(fill = "#002f61", color = "white", bins = 12)+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 10),
+        axis.title = element_text(face = "bold", size = 12))+
+  labs(x = "Longitude",
+       y = "")
+
+# Season
+
+n_study = ma2 %>% 
+ count(year) %>% 
+    mutate(year1 = row_number())
+
+study_g = n_study %>% 
+  ggplot(aes(as.factor(year1),n))+
+  geom_bar(stat = "identity", fill = "black", color = "white")+
+  #geom_histogram(fill = "black", color = "white", bins = 12)+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.title = )+
+  labs(x = "Year",
+       y = "Number")
+   
+
+library(cowplot)
+
+
+
+#plot_grid(T2M_g , T2M_MAX_g , T2M_MIN_g , RH2M_g , RAIN_g , DPD_g,DAYS_g, LAT_g, LON_g,
+ #       labels = c("(a)", "(b)", "(c)", "(d)","(e)","(f)","(g)","(h)","(i)"),label_x = -0.03, label_y =1)
+
+plot_grid(T2M_g , RH2M_g , RAIN_g ,DAYS_g, LAT_g, LON_g,
+        labels = c("(a)", "(b)", "(c)", "(d)","(e)","(f)"),label_x = -0.03, label_y =1,
+        label_size = 10)
+
+ggsave("fig/covariates.png", dpi = 600, bg = "white", height = 6, width = 10)
+
+```
+
+# INLA - Integrated Nested Laplace Approximation
+
+## Framework modeling
+
+### Selecting of models
+```{r}
+wd_0_60 = weather_data %>% 
+  dplyr::filter(days >= 0 & days <= 60)
+
+
+wd_0_60 = wd_0_60 %>% 
+  dplyr::mutate(epidemic = ifelse(mean_sev >= 0.20, 1, 0))
+
+inla_0_60 = inla(epidemic ~T2M +PRECTOTCORR + RH2M+
+          f(year1, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+      #f(days_difference, model = "rw1", hyper = list(prec = list(param = c(0.001,0.001)))),
+                        data = wd_0_60,
+                        family = "binomial",
+  control.predictor = list(compute = TRUE),
+  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE))
+
+summary(inla_0_60)
+
+```
+
+
+```{r}
+wd_0_60 %>%
+  dplyr::group_by(epidemic) %>% 
+  summarise(
+    n = n()/61
+  )
+```
+
+```{r}
+model_full <- inla(epidemic ~T2M +PRECTOTCORR + RH2M+
+          f(year1, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+                        data = wd_0_60,
+                        family = "binomial",
+  control.predictor = list(compute = TRUE),
+  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE))
+
+
+model_reduced <- inla(epidemic ~T2M +PRECTOTCORR + RH2M,
+                        data = wd_0_60,
+                        family = "binomial",
+  control.predictor = list(compute = TRUE),
+  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE))
+
+summary(model_reduced)
+loglik_full = model_full$mlik
+loglik_reduced = model_reduced$mlik
+ln_bf <- loglik_full - loglik_reduced
+ln_bf
+```
+
+
+### By windows
+
+#### 0 to 20
+```{r}
+wd_0_20 = weather_data %>% 
+  dplyr::filter(days >= 0 & days <= 20)
+
+
+wd_0_20 = wd_0_20 %>% 
+  dplyr::mutate(epidemic = ifelse(mean_sev >= 0.20, 1, 0))
+
+inla_0_20 = inla(epidemic ~T2M +PRECTOTCORR + RH2M+
+          f(year1, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+      #f(days_difference, model = "rw1", hyper = list(prec = list(param = c(0.001,0.001)))),
+                        data = wd_0_20,
+                        family = "binomial",
+  control.predictor = list(compute = TRUE),
+  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE))
+
+```
+
+```{r}
+wd_0_20 %>% 
+  summarise(
+    RAIN_mean = mean(PRECTOTCORR),
+    RAIN_sd = sd(PRECTOTCORR),
+    RAIN_max = max(PRECTOTCORR),
+    RAIN_min = min(PRECTOTCORR),
+  )
+```
+```{r}
+wd_0_20 %>% 
+  summarise(
+    HUMIDITY_mean = mean(RH2M),
+    HUMIDITY_sd = sd(RH2M),
+    HUMIDITY_max = max(RH2M),
+    HUMIDITY_min = min(RH2M),
+  )
+```
+
+```{r}
+wd_0_20 %>% 
+  summarise(
+    TEMPERATURE_mean = mean(T2M),
+    TEMPERATURE_sd = sd(T2M),
+    TEMPERATURE_max = max(T2M),
+    TEMPERATURE_min = min(T2M),
+  )
+```
+
+```{r}
+
+summary(inla_0_20)
+
+```
+
+```{r}
+inla_0_20$summary.random
+```
+
+##### Marginal effects
+
+
+```{r}
+
+marg_0_20_1 <- inla_0_20$marginals.fixed[[1]] # Intercept
+
+
+marg_0_20_1 = as.data.frame(marg_0_20_1)
+marg_0_20_1$windows = c("Survival")
+marg_0_20_1$parameter = c("Intercept")
+
+ggplot(marg_0_20_1, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+marg_0_20_2 <- inla_0_20$marginals.fixed[[2]] # T2M
+
+marg_0_20_2 = as.data.frame(marg_0_20_2)
+marg_0_20_2$windows = c("Survival")
+marg_0_20_2$parameter = c("Temperature")
+
+ggplot(marg_0_20_2, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+
+marg_0_20_3 <- inla_0_20$marginals.fixed[[3]] # PRECTOTCORR
+
+marg_0_20_3 = as.data.frame(marg_0_20_3)
+marg_0_20_3$windows = c("Survival")
+marg_0_20_3$parameter = c("Rain")
+
+ggplot(marg_0_20_3, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+
+marg_0_20_4 <- inla_0_20$marginals.fixed[[4]] # RH2M
+
+marg_0_20_4 = as.data.frame(marg_0_20_4)
+marg_0_20_4$windows = c("Survival")
+marg_0_20_4$parameter = c("Humidity")
+
+ggplot(marg_0_20_4, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+##### Prediction
+
+```{r}
+#inla_0_20$summary.fitted.values
+
+predictions <- inla_0_20$summary.fitted.values
+
+wd_0_20$mean = predictions$mean
+
+
+
+pred_results <- data.frame(
+  RH2M = wd_0_20$RH2M, 
+  PRECTOTCORR= wd_0_20$PRECTOTCORR,
+  T2M = wd_0_20$T2M,
+  predicted = inla_0_20$summary.fitted.values$mean,  
+  lower = inla_0_20$summary.fitted.values$`0.025quant`,  
+  upper = inla_0_20$summary.fitted.values$`0.975quant`   
+)
+
+pred_results <- pred_results %>%
+  pivot_longer(
+    cols = -c(predicted,lower,upper),  
+    names_to = "variables")
+
+#b4e4c0 #ca5858#6280bc ##c20f0f
+plot_0_20 = pred_results %>% 
+ggplot() +
+  geom_smooth(aes(x = value, y = predicted, color = variables), se = F, size = 2)+
+  geom_smooth(aes(x =  value , y = lower, color = variables), se = F, linetype = 2, size = 1.2) +
+  geom_smooth(aes(x =  value , y = upper, color = variables), se = F, linetype = 2, size = 1.2) +
+  scale_color_manual(values = c("T2M" = "darkred", "RH2M" = "darkgreen",
+                                  "PRECTOTCORR" = "#002f61")) +
+
+  labs(x = "", y = "Target spot outbreak (%)",title = "Survival")+
+  ggthemes::theme_few()+
+  facet_wrap(~variables, scales = "free", ncol = 1, strip.position = "bottom") +  
+  theme(
+    axis.title.y = element_text(size = 12, face = "bold"),
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),  
+    strip.text.x = element_blank(),
+    #strip.background = element_blank(),
+    legend.position = "none"
+  )
+
+plot_0_20
+```
+
+#### 20 to 40
+
+```{r}
+wd_20_40 = weather_data %>% 
+  dplyr::filter(days >= 20 & days <= 40)
+
+
+wd_20_40 = wd_20_40 %>% 
+  dplyr::mutate(epidemic = ifelse(mean_sev >= 0.20, 1, 0))
+
+
+inla_20_40 = inla(epidemic ~T2M +PRECTOTCORR + RH2M+ days_difference+
+          f(year1, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+      #f(days, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+                        data = wd_20_40,
+                        family = "binomial",
+  control.predictor = list(compute = TRUE),
+  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE))
+
+```
+
+```{r}
+wd_20_40 %>% 
+  summarise(
+    RAIN_mean = mean(PRECTOTCORR),
+    RAIN_sd = sd(PRECTOTCORR),
+    RAIN_max = max(PRECTOTCORR),
+    RAIN_min = min(PRECTOTCORR),
+  )
+```
+
+
+```{r}
+wd_20_40 %>% 
+  summarise(
+    HUMIDITY_mean = mean(RH2M),
+    HUMIDITY_sd = sd(RH2M),
+    HUMIDITY_max = max(RH2M),
+    HUMIDITY_min = min(RH2M),
+  )
+```
+
+```{r}
+wd_20_40 %>% 
+  summarise(
+    TEMPERATURE_mean = mean(T2M),
+    TEMPERATURE_sd = sd(T2M),
+    TEMPERATURE_max = max(T2M),
+    TEMPERATURE_min = min(T2M),
+  )
+```
+
+```{r}
+
+summary(inla_20_40)
+
+```
+
+```{r}
+inla_20_40$summary.random
+```
+
+##### Marginal effects
+
+```{r}
+
+marg_20_40_1 <- inla_20_40$marginals.fixed[[1]] # Intercept
+
+
+marg_20_40_1 = as.data.frame(marg_20_40_1)
+marg_20_40_1$windows = c("Sporulation")
+marg_20_40_1$parameter = c("Intercept")
+
+ggplot(marg_20_40_1, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+marg_20_40_2 <- inla_20_40$marginals.fixed[[2]] # T2M
+
+marg_20_40_2 = as.data.frame(marg_20_40_2)
+marg_20_40_2$windows = c("Sporulation")
+marg_20_40_2$parameter = c("Temperature")
+
+ggplot(marg_20_40_2, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+
+marg_20_40_3 <- inla_20_40$marginals.fixed[[3]] # PRECTOTCORR
+
+marg_20_40_3 = as.data.frame(marg_20_40_3)
+marg_20_40_3$windows = c("Sporulation")
+marg_20_40_3$parameter = c("Rain")
+
+ggplot(marg_20_40_3, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+
+marg_20_40_4 <- inla_20_40$marginals.fixed[[4]] # RH2M
+
+marg_20_40_4 = as.data.frame(marg_20_40_4)
+marg_20_40_4$windows = c("Sporulation")
+marg_20_40_4$parameter = c("Humidity")
+
+ggplot(marg_20_40_4, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+##### Prediction
+
+```{r}
+#inla_20_40$summary.fitted.values
+
+predictions <- inla_20_40$summary.fitted.values
+
+wd_20_40$mean = predictions$mean
+
+pred_results <- data.frame(
+  RH2M = wd_20_40$RH2M, 
+  PRECTOTCORR= wd_20_40$PRECTOTCORR,
+  T2M = wd_20_40$T2M,
+  predicted = inla_20_40$summary.fitted.values$mean,  
+  lower = inla_20_40$summary.fitted.values$`0.025quant`,  
+  upper = inla_20_40$summary.fitted.values$`0.975quant`   
+)
+
+pred_results <- pred_results %>%
+  pivot_longer(
+    cols = -c(predicted,lower,upper),  
+    names_to = "variables")
+
+
+plot_20_40 = pred_results %>% 
+ggplot() +
+  geom_smooth(aes(x = value, y = predicted, color = variables), se = F, size = 2)+
+  geom_smooth(aes(x =  value , y = lower, color = variables), se = F, linetype = 2, size = 1.2) +
+  geom_smooth(aes(x =  value , y = upper, color = variables), se = F, linetype = 2, size = 1.2) +
+  scale_color_manual(values = c("T2M" = "darkred", "RH2M" = "darkgreen",
+                                  "PRECTOTCORR" = "#002f61")) +
+  labs(x = "", y = "",,title = "Sporulation") +
+  ggthemes::theme_few()+
+     facet_wrap(~variables, scales = "free", ncol = 1, strip.position = "bottom") +  
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),  
+    strip.text.x = element_blank(),
+    #strip.background = element_blank(),
+    legend.position = "none"
+  )
+
+plot_20_40
+```
+
+#### 40 to 60
+
+```{r}
+wd_40_60 = weather_data %>% 
+  dplyr::filter(days >= 40 & days <= 60)
+
+
+wd_40_60 = wd_40_60 %>% 
+  dplyr::mutate(epidemic = ifelse(mean_sev >= 0.20, 1, 0))
+
+
+inla_40_60 = inla(epidemic ~T2M +PRECTOTCORR + RH2M+days_difference+
+          f(year1, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+      #f(days, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+                        data = wd_40_60,
+                        family = "binomial",
+  control.predictor = list(compute = TRUE),
+  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE))
+
+
+```
+
+```{r}
+wd_40_60 %>% 
+  summarise(
+    RAIN_mean = mean(PRECTOTCORR),
+    RAIN_sd = sd(PRECTOTCORR),
+    RAIN_max = max(PRECTOTCORR),
+    RAIN_min = min(PRECTOTCORR),
+  )
+```
+
+
+```{r}
+wd_40_60 %>% 
+  summarise(
+    HUMIDITY_mean = mean(RH2M),
+    HUMIDITY_sd = sd(RH2M),
+    HUMIDITY_max = max(RH2M),
+    HUMIDITY_min = min(RH2M),
+  )
+```
+
+```{r}
+wd_40_60 %>% 
+  summarise(
+    TEMPERATURE_mean = mean(T2M),
+    TEMPERATURE_sd = sd(T2M),
+    TEMPERATURE_max = max(T2M),
+    TEMPERATURE_min = min(T2M),
+  )
+```
+
+```{r}
+
+summary(inla_40_60)
+
+```
+
+```{r}
+inla_40_60$summary.random
+```
+
+##### Marginal effects
+```{r}
+
+marg_40_60_1 <- inla_40_60$marginals.fixed[[1]] # Intercept
+
+
+marg_40_60_1 = as.data.frame(marg_40_60_1)
+marg_40_60_1$windows = c("Infection")
+marg_40_60_1$parameter = c("Intercept")
+
+ggplot(marg_40_60_1, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+marg_40_60_2 <- inla_40_60$marginals.fixed[[2]] # T2M
+
+marg_40_60_2 = as.data.frame(marg_40_60_2)
+marg_40_60_2$windows = c("Infection")
+marg_40_60_2$parameter = c("Temperature")
+
+ggplot(marg_40_60_2, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+
+marg_40_60_3 <- inla_40_60$marginals.fixed[[3]] # PRECTOTCORR
+
+marg_40_60_3 = as.data.frame(marg_40_60_3)
+marg_40_60_3$windows = c("Infection")
+marg_40_60_3$parameter = c("Rain")
+
+marg_40_60_3 %>% 
+ggplot(aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+
+marg_40_60_4 <- inla_40_60$marginals.fixed[[4]] # RH2M
+
+marg_40_60_4 = as.data.frame(marg_40_60_4)
+marg_40_60_4$windows = c("Infection")
+marg_40_60_4$parameter = c("Humidity")
+
+ggplot(marg_40_60_4, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+##### Prediction
+
+```{r}
+#inla_40_60$summary.fitted.values
+
+predictions <- inla_40_60$summary.fitted.values
+
+wd_40_60$mean = predictions$mean
+
+pred_results <- data.frame(
+  RH2M = wd_40_60$RH2M, 
+  PRECTOTCORR= wd_40_60$PRECTOTCORR,
+  T2M = wd_40_60$T2M,
+  predicted = inla_40_60$summary.fitted.values$mean,  
+  lower = inla_40_60$summary.fitted.values$`0.025quant`,  
+  upper = inla_40_60$summary.fitted.values$`0.975quant`   
+)
+
+pred_results <- pred_results %>%
+  pivot_longer(
+    cols = -c(predicted,lower,upper),  
+    names_to = "variables")
+
+
+plot_40_60 = pred_results %>% 
+  #filter(variables == "PRECTOTCORR") %>% 
+ggplot() +
+  geom_smooth(aes(x = value, y = predicted, color = variables), se = F, size = 2)+
+  geom_smooth(aes(x =  value , y = lower, color = variables), se = F, linetype = 2, size = 1.2) +
+  geom_smooth(aes(x =  value , y = upper, color = variables), se = F, linetype = 2, size = 1.2) +
+  scale_color_manual(values = c("T2M" = "darkred", "RH2M" = "darkgreen",
+                                  "PRECTOTCORR" = "#002f61")) +
+  labs(x = "", y = "",title = "Infection") +
+  ggthemes::theme_few()+
+   facet_wrap(~variables, scales = "free", ncol = 1, strip.position = "bottom") +  
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),  
+    strip.text.x = element_blank(),
+    #strip.background = element_blank(),
+    legend.position = "none"
+  )
+
+plot_40_60
+
+```
+
+#### 60 to 80
+```{r}
+wd_60_80 = weather_data %>% 
+  dplyr::filter(days >= 60 & days <= 80)
+
+wd_60_80 = wd_60_80 %>% 
+  dplyr::mutate(epidemic = ifelse(mean_sev >= 0.20, 1, 0))
+
+
+inla_60_80 = inla(epidemic ~T2M +PRECTOTCORR + RH2M+ days_difference+
+          f(year1, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+      #f(days, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+                        data = wd_60_80,
+                        family = "binomial",
+  control.predictor = list(compute = TRUE),
+  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE))
+
+```
+
+
+```{r}
+wd_60_80 %>% 
+  summarise(
+    RAIN_mean = mean(PRECTOTCORR),
+    RAIN_sd = sd(PRECTOTCORR),
+    RAIN_max = max(PRECTOTCORR),
+    RAIN_min = min(PRECTOTCORR),
+  )
+```
+
+
+```{r}
+wd_60_80 %>% 
+  summarise(
+    HUMIDITY_mean = mean(RH2M),
+    HUMIDITY_sd = sd(RH2M),
+    HUMIDITY_max = max(RH2M),
+    HUMIDITY_min = min(RH2M),
+  )
+```
+
+```{r}
+wd_60_80 %>% 
+  summarise(
+    TEMPERATURE_mean = mean(T2M),
+    TEMPERATURE_sd = sd(T2M),
+    TEMPERATURE_max = max(T2M),
+    TEMPERATURE_min = min(T2M),
+  )
+```
+```{r}
+weather_data %>% 
+  filter(!state == "SP") %>% 
+   summarise(
+    DAYS_mean = mean(days_difference),
+    DAYS_sd = sd(days_difference),
+    DAYS_max = max(days_difference),
+    DAYS_min = min(days_difference),
+  )
+```
+```{r}
+weather_data %>% 
+  filter(!state == "SP") %>% 
+   summarise(
+    LAT_mean = mean(lat),
+    LAT_sd = sd(lat),
+    LAT_max = max(lat),
+    LAT_min = min(lat),
+  )
+```
+```{r}
+weather_data %>% 
+  filter(!state == "SP") %>% 
+   summarise(
+    LON_mean = mean(lon),
+    LON_sd = sd(lon),
+    LON_max = max(lon),
+    LON_min = min(lon),
+  )
+```
+
+```{r}
+
+summary(inla_60_80)
+
+```
+
+```{r}
+inla_60_80$summary.random
+```
+
+##### Marginal effects
+```{r}
+
+marg_60_80_1 <- inla_60_80$marginals.fixed[[1]] # Intercept
+
+
+marg_60_80_1 = as.data.frame(marg_60_80_1)
+marg_60_80_1$windows = c("Colonization")
+marg_60_80_1$parameter = c("Intercept")
+
+ggplot(marg_60_80_1, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+marg_60_80_2 <- inla_60_80$marginals.fixed[[2]] # T2M
+
+marg_60_80_2 = as.data.frame(marg_60_80_2)
+marg_60_80_2$windows = c("Colonization")
+marg_60_80_2$parameter = c("Temperature")
+
+ggplot(marg_60_80_2, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+
+marg_60_80_3 <- inla_60_80$marginals.fixed[[3]] # PRECTOTCORR
+
+marg_60_80_3 = as.data.frame(marg_60_80_3)
+marg_60_80_3$windows = c("Colonization")
+marg_60_80_3$parameter = c("Rain")
+
+marg_60_80_3 %>% 
+ggplot(aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+
+marg_60_80_4 <- inla_60_80$marginals.fixed[[4]] # RH2M
+
+marg_60_80_4 = as.data.frame(marg_60_80_4)
+marg_60_80_4$windows = c("Colonization")
+marg_60_80_4$parameter = c("Humidity")
+
+ggplot(marg_60_80_4, aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_color_viridis_d(option = "E")+
+  labs(x = "Intercept",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12, face = "bold"))
+```
+
+
+##### Prediction
+
+```{r}
+#inla_60_80$summary.fitted.values
+
+predictions <- inla_60_80$summary.fitted.values
+
+wd_60_80$mean = predictions$mean
+
+pred_results <- data.frame(
+  RH2M = wd_60_80$RH2M, 
+  PRECTOTCORR= wd_60_80$PRECTOTCORR,
+  T2M = wd_60_80$T2M,
+  predicted = inla_60_80$summary.fitted.values$mean,  
+  lower = inla_60_80$summary.fitted.values$`0.025quant`,  
+  upper = inla_60_80$summary.fitted.values$`0.975quant`   
+)
+
+pred_results <- pred_results %>%
+  pivot_longer(
+    cols = -c(predicted,lower,upper),  
+    names_to = "variables")
+
+
+plot_60_80 = pred_results %>% 
+  #filter(variables == "PRECTOTCORR") %>% 
+ggplot() +
+   geom_smooth(aes(x = value, y = predicted, color = variables), se = F, size = 2)+
+  geom_smooth(aes(x =  value , y = lower, color = variables), se = F, linetype = 2, size = 1.2) +
+  geom_smooth(aes(x =  value , y = upper, color = variables), se = F, linetype = 2, size = 1.2) +
+  scale_color_manual(values = c("T2M" = "darkred", "RH2M" = "darkgreen",
+                                  "PRECTOTCORR" = "#002f61")) +
+  labs(x = "", y = "", title = "Colonization") +
+  ggthemes::theme_few() +
+  facet_wrap(~variables, scales = "free", ncol = 1, strip.position = "bottom") +  
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),  
+    strip.text.x = element_blank(),
+    strip.background = element_blank(),
+    legend.position = "none"
+  )
+
+plot_60_80
+```
+
+#### Joining
+
+```{r}
+plot_grid(plot_0_20,plot_20_40,plot_40_60,plot_60_80, ncol = 4)
+
+
+ggsave("fig/INLA_prediction.png", dpi = 600, bg = "white",
+        height = 6, width = 10)
+```
+## Marginal plotting
+```{r}
+
+
+all_marginal = rbind(marg_0_20_1,marg_0_20_2,marg_0_20_3,marg_0_20_4,
+                     marg_20_40_1,marg_20_40_2,marg_20_40_3,marg_20_40_4,
+                     marg_40_60_1,marg_40_60_2,marg_40_60_3,marg_40_60_4,
+                     marg_60_80_1,marg_60_80_2,marg_60_80_3,marg_60_80_4)
+
+all_marginal %>% 
+ggplot(aes(x, y, color = windows)) +
+  geom_line(size = 2) +
+  ggthemes::theme_few()+
+  scale_colour_manual(values = c("darkred","#002f61", "darkgreen","darkorange"))+
+  #scale_color_viridis_d(option = "D")+
+  facet_wrap(~parameter, scale = "free")+
+  labs(x = "Marginal effect",
+       y = "Frequency",
+       color = "Windows")+
+  theme(text = element_text(size = 12),
+        axis.title = element_text(face = "bold"),
+        strip.text = element_text(face = "bold"))
+
+ggsave("fig/marginal_effects.png", dpi = 600, bg = "white",
+       height = 6, width = 8)
+```
+
+## Random (Year)
+```{r}
+year_0_20 = inla_0_20$summary.random
+year_0_20 = as.data.frame(year_0_20)
+
+year_0_20 %>% 
+ggplot(aes(x = as.factor(year1.ID), y = year1.mean)) +
+  geom_segment(aes(xend = as.factor(year1.ID), y = 0, yend = year1.mean, 
+                   color = year1.mean > 0), size = 1, linetype = "dashed") +
+  geom_point(aes(color = year1.mean > 0), size = 4) +
+  geom_hline(yintercept = 0, color = "black", linetype = "solid") +  
+  scale_color_manual(values = c("TRUE" = "darkred", "FALSE" = "#002f61")) +
+  scale_y_continuous(breaks = seq(-2.5, 4.5, 0.5)) +
+  ggthemes::theme_few() +
+  labs(x = "Year",
+       y = "Marginal effect") +
+  theme(text = element_text(size = 12),
+       axis.title = element_text(face = "bold", size = 12),
+        strip.text = element_text(face = "bold", size = 12),
+        legend.position = "none")
+
+ggsave("fig/marginal_effects_year.png", dpi = 600, bg = "white",
+       height = 6, width = 10)
+```
+
+## Scenarios
+
+```{r,eval = FALSE, echo = TRUE}
+
+median(pred_results$PRECTOTCORR)
+median(pred_results$RH2M)
+
+pred_results2 = pred_results %>% 
+  dplyr::mutate(scenarios = ifelse(RH2M>= 79, 1,0))
+
+
+
+pred_results2 <- pred_results2 %>%
+  pivot_longer(
+    cols = -c(predicted,lower,upper, scenarios),  
+    names_to = "variables")
+
+pred_results2$scenarios = as.factor(pred_results2$scenarios)
+
+plot_60_80 = pred_results2 %>% 
+  filter(variables == "T2M") %>% 
+ggplot() +
+   geom_smooth(aes(x = value, y = predicted, color = scenarios), se = F, size = 2)+
+  geom_smooth(aes(x =  value , y = lower, color = scenarios), se = F, linetype = 2, size = 1.2) +
+  geom_smooth(aes(x =  value , y = upper, color = scenarios), se = F, linetype = 2, size = 1.2) +
+  #scale_color_manual(values = c("T2M" = "#c20f0f", "RH2M" = "darkgreen",
+   #                               "PRECTOTCORR" = "#002f61")) +
+  labs(x = "", y = "", title = "60 to 80") +
+  ggthemes::theme_few() +
+  #facet_wrap(~scenarios, scales = "free", ncol = 1, strip.position = "bottom") +  
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),  
+    strip.text.x = element_blank(),
+    strip.background = element_blank(),
+    legend.position = "right"
+  )
+plot_60_80
+```
+
+```{r,eval = FALSE, echo = TRUE}
+plot_60_80 = pred_results %>% 
+  #filter(variables == "PRECTOTCORR") %>% 
+ggplot() +
+   geom_smooth(aes(x = value, y = predicted, color = variables), se = F, size = 2)+
+  geom_smooth(aes(x =  value , y = lower, color = variables), se = F, linetype = 2, size = 1.2) +
+  geom_smooth(aes(x =  value , y = upper, color = variables), se = F, linetype = 2, size = 1.2) +
+  scale_color_manual(values = c("T2M" = "#c20f0f", "RH2M" = "darkgreen",
+                                  "PRECTOTCORR" = "#002f61")) +
+  labs(x = "", y = "", title = "60 to 80") +
+  ggthemes::theme_few() +
+  facet_wrap(~variables, scales = "free", ncol = 1, strip.position = "bottom") +  
+ theme(
+    plot.title = element_text(hjust = 0.5, size = 12, face = "bold"),  
+    strip.text.x = element_blank(),
+    strip.background = element_blank(),
+    legend.position = "none"
+  )
+```
+
+# Map
+
+```{r}
+map = ma2 %>% 
+  dplyr::select(study,year,location,state,lat,longitude,mean_sev)
+
+colnames(map) = c("study","year","location","state","lat","lon","mean_sev")
+
+library(scales)
+library(ggspatial) 
+library(readxl)
+library(ggrepel)
+library(cowplot)
+library(rnaturalearth)
+
+BRA = ne_states(
+  country = "Brazil",
+  returnclass = "sf"
+)
+
+
+
+states <- filter(BRA, 
+                 name_pt == "Paraná"|
+                 name_pt == "São Paulo"|
+                 name_pt == "Mato Grosso"|
+                 name_pt == "Mato Grosso do Sul"|
+                 name_pt == "Goiás"|
+                 name_pt == "Minas Gerais"|
+                 name_pt == "Distrito Federal"|
+                 name_pt == "Tocantins"|
+                 name_pt == "Bahia")
+
+states = states %>% 
+  mutate(id = case_when(
+    name_pt == "Paraná" ~ "PR",
+    name_pt == "São Paulo" ~ "SP",
+    name_pt == "Mato Grosso" ~ "MT",
+    name_pt == "Mato Grosso do Sul" ~ "MS",
+    name_pt == "Goiás" ~ "GO",
+    name_pt == "Minas Gerais" ~ "MG",
+    name_pt == "Distrito Federal" ~ "DF",
+    name_pt == "Tocantins" ~ "TO",
+    name_pt == "Bahia" ~ "BA"))
+
+SUL = ne_states(
+  country = c("Argentina", "Uruguay", "Paraguay", "Colombia", "Bolivia"),
+  returnclass = "sf")
+br_sf <- ne_states(geounit = "brazil",
+                   returnclass = "sf")
+
+unique(map$state)
+```
+
+```{r}
+map_plot = map %>% 
+ggplot()+
+  geom_sf(data = SUL, fill = "gray95", color = "gray95") +
+  geom_sf(data = BRA, fill = "gray98", color= "gray60", size =0.2) +
+  geom_sf(data = states, aes(x = longitude, y = latitude), fill = "white", color = "gray40", size = 0.2) +
+  geom_jitter(data = map, aes(as.numeric(lon), as.numeric(lat), size = mean_sev), alpha = 0.8, color = "#002f61") +
+  geom_text(data = states, aes(x = longitude, y = latitude,  label = id), size = 3, hjust = 0.8, fontface = "bold")+
+  labs(x = "Longitude", y = "Latitude", color = "Region", size = "Number of Trials") +
+  scale_size_continuous(range = c(1,5), breaks = c(1,5,12))+
+  #theme_bw()+
+  theme_minimal_grid()+
+  annotation_scale(location = "bl", width_hint = 0.2) +
+  coord_sf(xlim = c(-65,-40), ylim = c(-32, -9), expand = FALSE)+
+  #scale_color_calc()+
+  theme(legend.position = "right",
+        legend.justification = "center",
+        legend.title.align = 0.5,
+        legend.title = element_text(size = 10, face = "bold"),
+        legend.text = element_text(size = 10),
+        axis.text.x =  element_text(size = 9),
+        axis.text.y = element_text(size = 9),
+        axis.title.x = element_text(size=12, face = "bold"),
+        axis.title.y = element_text(size=12, face = "bold"),
+        panel.border = element_rect(color = "gray50", size=.2),
+        panel.background = element_rect(fill = "#d2eeff")
+        )+
+  annotation_north_arrow(location = "bl", which_north = "true", pad_x = unit(0.5, "in"), pad_y = unit(0.5, "in"), style = north_arrow_orienteering(fill = c("gray80", "gray96")), height = unit(0.9, "cm"), width = unit(0.8, "cm"))+
+  guides(size=F)
+```
+
+
+```{r}
+sev_plot = map %>% 
+  ggplot(aes(mean_sev))+
+  geom_histogram(fill = "#002f61", color = "white", bins = 15)+
+  ggthemes::theme_few()+
+  labs(x = "Severity (%)",
+       y = "Frequency")+
+  theme(text = element_text(size = 12),
+        axis.title = element_text(face = "bold"),
+        axis.text.x = element_text(angle = 45, vjust = 0.5))
+```
+
+```{r}
+year_plot= map %>% 
+dplyr::group_by(year) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  ggplot(aes(as.factor(year),n))+
+  geom_bar(stat = "identity" ,fill = "#002f61")+
+  ggthemes::theme_few()+
+  labs(x = "Year",
+       y = "Number of studies")+
+  theme(text = element_text(size = 12),
+        axis.title = element_text(face = "bold"),
+        axis.text.x = element_text(angle = 45, vjust = 0.5))
+
+year_plot
+```
+
+```{r,eval = FALSE, echo = TRUE}
+
+(map_plot+sev_plot/year_plot)+
+    plot_annotation(tag_levels = "a", tag_prefix = "(", tag_suffix = ")") & 
+  theme(plot.tag = element_text(face = "bold", size = 12),label_x = -0.03, label_y =1)  
+
+ggsave("fig/map_sev_year.png", dpi = 600, bg = "white",
+       width = 10, height = 8)
+```
+
+# Overall
+```{r,eval = FALSE, echo = TRUE}
+
+wd_60_8022 = weather_data %>% 
+  dplyr::filter(days >= 0 & days <= 60)
+
+
+wd_60_8022 = wd_60_8022 %>%
+  #filter(!mean_sev >= .6) %>% 
+  #filter(mean_sev > 0.05) %>% 
+  group_by(id) %>% 
+  dplyr::summarise(
+    RH2M = mean(RH2M),
+    T2M = mean(T2M),
+    T2M_MAX = mean(T2M_MAX),
+    T2M_MIN = mean(T2M_MIN),
+    DPD = mean(DPD),
+    PRECTOTCORR = sum(PRECTOTCORR),
+    lat = mean(lat),
+    lon = mean(lon),
+    days_difference = mean(days_difference),
+    mean_sev = mean(mean_sev),
+    level1 = mean(level1),
+    year1 = mean(year1)
+    )
+
+wd_60_8022 = wd_60_8022 %>% 
+  dplyr::mutate(epidemic = ifelse(mean_sev >= 0.20, 1, 0)) # 25 = 73% Acurácia
+
+
+#f(lat, model = "iid", hyper = list(prec = list(param = c(0.001,0.001))))+
+#f(lon, model = "iid", hyper = list(prec = list(param = c(0.001,0.001))))
+
+
+surv_fit_ONI1 = inla(epidemic ~T2M + RH2M,
+          #f(year1, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+      f(days_difference, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+                        data = wd_60_8022,
+                        family = "binomial",
+  control.predictor = list(compute = TRUE),
+  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE))
+
+summary(surv_fit_ONI1)
+
+predictions <- surv_fit_ONI1$summary.fitted.values
+
+wd_60_8022$mean = predictions$mean
+
+wd_60_8 = wd_60_8022 %>% 
+  dplyr::select(epidemic,mean) %>% 
+  mutate(
+    ID = nrow(epidemic)
+  )
+
+wd_60_8 = as.data.frame(wd_60_8)
+class(wd_60_8)
+
+#optimal.thresholds(wd_60_8)
+cm_rf_052 = confusionMatrix(data = as.factor(as.numeric(wd_60_8022$mean  > 0.75)),  mode= "everything",  reference = as.factor(wd_60_8022$epidemic))
+cm_rf_052
+
+dat_lasso <- data.frame(1, wd_60_8022$epidemic, predictions$mean)
+auc.roc.plot(dat_lasso)
+roc(wd_60_8022$epidemic,predictions$mean)
+error.threshold.plot(dat_lasso, opt.methods = 3)
+presence.absence.summary(dat_lasso)
+```
+
+## LOOCV
+```{r,eval = FALSE, echo = TRUE}
+set.seed(123)
+
+
+acc <- NULL
+for(i in 1:nrow(wd_60_8022))
+{
+    # Train-test splitting
+    # 499 samples -> fitting
+    # 1 sample -> testing
+    train <- wd_60_8022[-i,]
+    test <- wd_60_8022[i,]
+    
+    # Fitting
+
+    modelt <- inla(epidemic ~T2M + RH2M,
+         # f(year1, model = "iid", hyper = list(prec = list(param = c(0.001,0.001))))+
+      #f(days_difference, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+                        data = train,
+                        family = "binomial",
+  control.predictor = list(compute = TRUE),
+  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE))
+
+    
+    # Predict results
+    results_prob <- modelt$summary.fitted.values
+    
+    # If prob > 0.5 then 1, else 0
+    results <- ifelse(results_prob$mean > 0.75,1,0)
+    
+    # Actual answers
+    answers <- test$epidemic
+    
+    # Calculate accuracy
+    misClasificError <- mean(answers != results)
+    
+    # Collecting results
+    acc[i] <- 1-misClasificError
+}
+
+# Average accuracy of the model
+mean(acc)
+```
+
+# Dialy
+Esse também foi bom com dados diários
+```{r,eval = FALSE, echo = TRUE}
+wd_0_20 = weather_data %>% 
+  dplyr::filter(days >= 0 & days <= 60)
+
+#wd_0_20 = wd_0_20 %>% 
+ # filter(year == "2013")
+
+wd_0_20 = wd_0_20 %>% 
+  dplyr::mutate(epidemic = ifelse(mean_sev >= 0.20, 1, 0))
+
+
+inla_0_20 = inla(epidemic ~T2M + RH2M+
+     f(days_difference, model = "rw1", hyper = list(prec = list(param = c(0.001,0.001)))),
+                        data = wd_0_20,
+                        family = "binomial",
+  control.predictor = list(compute = TRUE),
+  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE))
+
+summary(inla_0_20)
+
+predictions <- inla_0_20$summary.fitted.values
+
+wd_0_20$mean = predictions$mean
+
+
+dat_lasso <- data.frame(1, wd_0_20$epidemic, predictions$mean)
+
+optimal.thresholds(dat_lasso)
+cm_rf_052 = confusionMatrix(data = as.factor(as.numeric(wd_0_20$mean  > 0.75)),  mode= "everything",  reference = as.factor(wd_0_20$epidemic))
+cm_rf_052
+
+
+```
+
+```{r,eval = FALSE, echo = TRUE}
+auc.roc.plot(dat_lasso)
+
+ggsave("fig/ROC_plot.png")
+```
+
+```{r,eval = FALSE, echo = TRUE}
+
+roc(wd_0_20$epidemic,predictions$mean)
+
+```
+
+```{r,eval = FALSE, echo = TRUE}
+
+error.threshold.plot(dat_lasso, opt.methods = 3)
+
+```
+
+```{r,eval = FALSE, echo = TRUE}
+presence.absence.summary(dat_lasso)
+```
+
+
+## LOOCV
+LOOCV com dados diários
+```{r,eval = FALSE, echo = TRUE}
+set.seed(123)
+
+
+acc <- NULL
+for(i in 1:nrow(wd_0_20))
+{
+    # Train-test splitting
+    # 499 samples -> fitting
+    # 1 sample -> testing
+    train <- wd_0_20[-i,]
+    test <- wd_0_20[i,]
+    
+    # Fitting
+
+    modelt <- inla(epidemic ~T2M + RH2M+
+         # f(year1, model = "iid", hyper = list(prec = list(param = c(0.001,0.001))))+
+      f(days_difference, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+                        data = train,
+                        family = "binomial",
+  control.predictor = list(compute = TRUE),
+  control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE))
+
+    
+    # Predict results
+    results_prob <- modelt$summary.fitted.values
+    
+    # If prob > 0.5 then 1, else 0
+    results <- ifelse(results_prob$mean > 0.75,1,0)
+    
+    # Actual answers
+    answers <- test$epidemic
+    
+    # Calculate accuracy
+    misClasificError <- mean(answers != results)
+    
+    # Collecting results
+    acc[i] <- 1-misClasificError
+}
+
+# Average accuracy of the model
+mean(acc)
+```
+
+# PREDICTION WITH INLA.BRU TO FUTURE DATA
+
+```{r,eval = FALSE, echo = TRUE}
+
+wd_0_203 = wd_0_20 %>% 
+  dplyr::select(-epidemic)
+
+
+predictions <- inla_0_20$summary.fitted.values
+
+inla_0_20 = bru(epidemic ~T2M + RH2M+
+                  f(year1, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
+      #f(days_difference, model = "rw1", hyper = list(prec = list(param = c(0.001,0.001)))),
+                        data = wd_0_20,
+                        family = "binomial")
+
+
+summary(inla_0_20)
+t = predict(object= inla_0_20, newdata = wd_0_203, formula = ~ c(pred = Intercept + T2M + RH2M))
+
+glimpse(t)
+plogis(t$mean)
+
+wd_0_20 %>% 
+  ggplot(aes(mean_sev))+
+  geom_histogram()
+```
+
