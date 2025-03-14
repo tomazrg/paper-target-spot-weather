@@ -3,5 +3,5 @@
 <img src="fig/epidemiology.png" style="width: 500px; height: 300px;float: right; margin-left: 30px;"> 
 
 
-The dataset was obtained from four field experiments conducted under natural infection conditions of disease, being carried out in the years of 2012 and 2023 in the states of Mato Grosso (MT), Goiás (GO), Tocantins (TO), Bahia (BA), Mato Grosso do Sul (MS), Minas Gerais (MG), São Paulo (SP), and Paraná (PR).
+The dataset was obtained from  field experiments conducted under natural infection conditions of disease, being carried out between the years of 2012 and 2023 in the states of Mato Grosso (MT), Goiás (GO), Tocantins (TO), Bahia (BA), Mato Grosso do Sul (MS), Minas Gerais (MG), São Paulo (SP), and Paraná (PR).
 

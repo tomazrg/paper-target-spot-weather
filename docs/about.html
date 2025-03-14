@@ -170,12 +170,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#joining" id="toc-joining" class="nav-link" data-scroll-target="#joining">Joining</a></li>
   <li><a href="#windown-sowing" id="toc-windown-sowing" class="nav-link" data-scroll-target="#windown-sowing">Windown sowing</a></li>
   <li><a href="#distribution" id="toc-distribution" class="nav-link" data-scroll-target="#distribution">Distribution</a></li>
-  <li><a href="#inla---integrated-nested-laplace-approximation" id="toc-inla---integrated-nested-laplace-approximation" class="nav-link" data-scroll-target="#inla---integrated-nested-laplace-approximation">INLA - Integrated Nested Laplace Approximation</a>
-  <ul class="collapse">
   <li><a href="#framework-modeling" id="toc-framework-modeling" class="nav-link" data-scroll-target="#framework-modeling">Framework modeling</a>
   <ul class="collapse">
   <li><a href="#selecting-of-models" id="toc-selecting-of-models" class="nav-link" data-scroll-target="#selecting-of-models">Selecting of models</a></li>
-  <li><a href="#by-windows" id="toc-by-windows" class="nav-link" data-scroll-target="#by-windows">By windows</a></li>
+  <li><a href="#by-windows" id="toc-by-windows" class="nav-link" data-scroll-target="#by-windows">By windows</a>
+  <ul class="collapse">
+  <li><a href="#to-20" id="toc-to-20" class="nav-link" data-scroll-target="#to-20">0 to 20</a></li>
   </ul></li>
   <li><a href="#marginal-plotting" id="toc-marginal-plotting" class="nav-link" data-scroll-target="#marginal-plotting">Marginal plotting</a></li>
   <li><a href="#random-year" id="toc-random-year" class="nav-link" data-scroll-target="#random-year">Random (Year)</a></li>
@@ -1289,12 +1289,10 @@ Anexando pacote: 'cowplot'</code></pre>
 <div class="sourceCode cell-code" id="cb68"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggsave</span>(<span class="st">"fig/covariates.png"</span>, <span class="at">dpi =</span> <span class="dv">600</span>, <span class="at">bg =</span> <span class="st">"white"</span>, <span class="at">height =</span> <span class="dv">6</span>, <span class="at">width =</span> <span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
-<section id="inla---integrated-nested-laplace-approximation" class="level1">
-<h1>INLA - Integrated Nested Laplace Approximation</h1>
-<section id="framework-modeling" class="level2">
-<h2 class="anchored" data-anchor-id="framework-modeling">Framework modeling</h2>
-<section id="selecting-of-models" class="level3">
-<h3 class="anchored" data-anchor-id="selecting-of-models">Selecting of models</h3>
+<section id="framework-modeling" class="level1">
+<h1>Framework modeling</h1>
+<section id="selecting-of-models" class="level2">
+<h2 class="anchored" data-anchor-id="selecting-of-models">Selecting of models</h2>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb69"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a>wd_0_60 <span class="ot">=</span> weather_data <span class="sc">%&gt;%</span> </span>
 <span id="cb69-2"><a href="#cb69-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(days <span class="sc">&gt;=</span> <span class="dv">0</span> <span class="sc">&amp;</span> days <span class="sc">&lt;=</span> <span class="dv">60</span>)</span>
@@ -1314,7 +1312,7 @@ Anexando pacote: 'cowplot'</code></pre>
 <span id="cb69-16"><a href="#cb69-16" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(inla_0_60)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.255, Running = 0.589, Post = 0.103, Total = 0.946 
+    Pre = 0.283, Running = 1.04, Post = 0.119, Total = 1.44 
 Fixed effects:
               mean    sd 0.025quant 0.5quant 0.975quant   mode kld
 (Intercept) -4.331 0.952     -6.147   -4.356     -2.362 -4.352   0
@@ -1375,7 +1373,7 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <span id="cb72-15"><a href="#cb72-15" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(model_reduced)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.135, Running = 0.215, Post = 0.305, Total = 0.655 
+    Pre = 0.124, Running = 0.194, Post = 0.295, Total = 0.613 
 Fixed effects:
               mean    sd 0.025quant 0.5quant 0.975quant   mode kld
 (Intercept) -3.614 0.378     -4.355   -3.614     -2.873 -3.614   0
@@ -1406,10 +1404,10 @@ log marginal-likelihood (Gaussian)    1053.888</code></pre>
 </div>
 </div>
 </section>
-<section id="by-windows" class="level3">
-<h3 class="anchored" data-anchor-id="by-windows">By windows</h3>
-<section id="to-20" class="level4">
-<h4 class="anchored" data-anchor-id="to-20">0 to 20</h4>
+<section id="by-windows" class="level2">
+<h2 class="anchored" data-anchor-id="by-windows">By windows</h2>
+<section id="to-20" class="level3">
+<h3 class="anchored" data-anchor-id="to-20">0 to 20</h3>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb76"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a>wd_0_20 <span class="ot">=</span> weather_data <span class="sc">%&gt;%</span> </span>
 <span id="cb76-2"><a href="#cb76-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(days <span class="sc">&gt;=</span> <span class="dv">0</span> <span class="sc">&amp;</span> days <span class="sc">&lt;=</span> <span class="dv">20</span>)</span>
@@ -1478,7 +1476,7 @@ log marginal-likelihood (Gaussian)    1053.888</code></pre>
 <div class="sourceCode cell-code" id="cb80"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(inla_0_20)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.136, Running = 0.288, Post = 0.0668, Total = 0.491 
+    Pre = 0.131, Running = 0.277, Post = 0.089, Total = 0.497 
 Fixed effects:
               mean    sd 0.025quant 0.5quant 0.975quant   mode kld
 (Intercept) -4.390 0.974     -6.269   -4.405     -2.424 -4.402   0
@@ -1512,31 +1510,31 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="cell-output cell-output-stdout">
 <pre><code>$year1
    ID       mean        sd 0.025quant   0.5quant  0.975quant       mode
-1   1  3.3857406 1.4104486  0.9691892  3.2553448  6.58167204  3.0584720
-2   2 -1.8049505 0.7115334 -3.3211580 -1.7754028 -0.46526390 -1.7796871
-3   3 -1.9029894 0.7100121 -3.4168180 -1.8732918 -0.56638783 -1.8775749
-4   4 -2.3630546 0.7124726 -3.8820238 -2.3330721 -1.02298795 -2.3373230
-5   5 -1.0321778 0.7126943 -2.5496573 -1.0029703  0.31052060 -1.0072715
-6   6  4.2341320 1.3237743  1.9850066  4.1057494  7.24853748  3.9212002
-7   7  0.4925630 0.7313644 -1.0515174  0.5188705  1.87689474  0.5145988
-8   8 -1.5477560 0.7113387 -3.0638177 -1.5181266 -0.20864721 -1.5224087
-9   9  0.6058845 0.7317304 -0.9381584  0.6319136  1.99169185  0.6276392
-10 10  0.2839310 0.7319501 -1.2618759  0.3105037  1.66852476  0.3062429
-11 11  0.9360970 0.7332247 -0.6084859  0.9612735  2.32709557  0.9570015
-12 12 -1.2852275 0.7142955 -2.8061976 -1.2557778  0.05957507 -1.2600552
+1   1  3.3857403 1.4104485  0.9691892  3.2553446  6.58167176  3.0584718
+2   2 -1.8049504 0.7115333 -3.3211577 -1.7754028 -0.46526404 -1.7796871
+3   3 -1.9029893 0.7100120 -3.4168177 -1.8732917 -0.56638797 -1.8775749
+4   4 -2.3630546 0.7124725 -3.8820235 -2.3330720 -1.02298809 -2.3373229
+5   5 -1.0321777 0.7126942 -2.5496570 -1.0029703  0.31052046 -1.0072715
+6   6  4.2341317 1.3237741  1.9850066  4.1057492  7.24853705  3.9211999
+7   7  0.4925631 0.7313643 -1.0515171  0.5188705  1.87689460  0.5145988
+8   8 -1.5477559 0.7113386 -3.0638174 -1.5181266 -0.20864735 -1.5224086
+9   9  0.6058845 0.7317303 -0.9381582  0.6319137  1.99169171  0.6276393
+10 10  0.2839310 0.7319500 -1.2618756  0.3105037  1.66852462  0.3062429
+11 11  0.9360971 0.7332246 -0.6084856  0.9612736  2.32709543  0.9570016
+12 12 -1.2852274 0.7142954 -2.8061973 -1.2557777  0.05957493 -1.2600551
             kld
-1  1.227549e-04
-2  4.527162e-05
-3  4.631141e-05
-4  4.498454e-05
-5  4.435787e-05
-6  1.364521e-04
-7  3.300992e-05
-8  4.545006e-05
-9  3.270726e-05
-10 3.288042e-05
-11 3.162420e-05
-12 4.356496e-05</code></pre>
+1  1.227526e-04
+2  4.527074e-05
+3  4.631053e-05
+4  4.498367e-05
+5  4.435701e-05
+6  1.364487e-04
+7  3.300922e-05
+8  4.544918e-05
+9  3.270656e-05
+10 3.287972e-05
+11 3.162351e-05
+12 4.356411e-05</code></pre>
 </div>
 </div>
 <section id="marginal-effects" class="level5">
@@ -1695,7 +1693,6 @@ Posterior summaries for the linear predictor and the fitted values are computed
 </div>
 </div>
 </section>
-</section>
 <section id="to-40" class="level4">
 <h4 class="anchored" data-anchor-id="to-40">20 to 40</h4>
 <div class="cell">
@@ -1767,7 +1764,7 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="sourceCode cell-code" id="cb94"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb94-1"><a href="#cb94-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(inla_20_40)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.14, Running = 0.286, Post = 0.099, Total = 0.525 
+    Pre = 0.137, Running = 0.286, Post = 0.0793, Total = 0.502 
 Fixed effects:
                   mean    sd 0.025quant 0.5quant 0.975quant   mode kld
 (Intercept)     -4.213 1.071     -6.285   -4.226     -2.065 -4.224   0
@@ -1801,32 +1798,32 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="sourceCode cell-code" id="cb96"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb96-1"><a href="#cb96-1" aria-hidden="true" tabindex="-1"></a>inla_20_40<span class="sc">$</span>summary.random</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>$year1
-   ID       mean        sd 0.025quant   0.5quant  0.975quant       mode
-1   1  3.4841428 1.4091450  1.0732497  3.3527209  6.68021566  3.1561176
-2   2 -1.8328219 0.7160197 -3.3589643 -1.8029950 -0.48474158 -1.8073007
-3   3 -1.8488351 0.7144924 -3.3723598 -1.8189522 -0.50357484 -1.8232629
-4   4 -2.3506429 0.7169628 -3.8793653 -2.3204588 -1.00195202 -2.3247369
-5   5 -1.0694973 0.7168651 -2.5962241 -1.0400583  0.28117825 -1.0443861
-6   6  4.2924309 1.3285123  2.0372633  4.1628960  7.31964736  3.9777720
-7   7  0.5902255 0.7352816 -0.9622393  0.6166024  1.98250366  0.6122912
-8   8 -1.5141552 0.7156264 -3.0394440 -1.4843897 -0.16658469 -1.4887036
-9   9  0.5688288 0.7360509 -0.9848906  0.5951505  1.96264695  0.5908450
-10 10  0.3378782 0.7362997 -1.2170898  0.3645205  1.73119134  0.3602255
-11 11  0.6540747 0.7355736 -0.8984518  0.6802671  2.04741682  0.6759552
-12 12 -1.3094017 0.7177658 -2.8383116 -1.2797393  0.04220064 -1.2840507
+   ID       mean        sd 0.025quant   0.5quant 0.975quant       mode
+1   1  3.4841422 1.4091447  1.0732497  3.3527204  6.6802146  3.1561172
+2   2 -1.8328218 0.7160195 -3.3589639 -1.8029949 -0.4847418 -1.8073006
+3   3 -1.8488349 0.7144923 -3.3723593 -1.8189521 -0.5035751 -1.8232628
+4   4 -2.3506428 0.7169626 -3.8793649 -2.3204587 -1.0019523 -2.3247368
+5   5 -1.0694972 0.7168649 -2.5962236 -1.0400582  0.2811780 -1.0443860
+6   6  4.2924304 1.3285121  2.0372633  4.1628955  7.3196463  3.9777715
+7   7  0.5902256 0.7352814 -0.9622388  0.6166025  1.9825034  0.6122913
+8   8 -1.5141551 0.7156262 -3.0394436 -1.4843896 -0.1665849 -1.4887035
+9   9  0.5688289 0.7360507 -0.9848901  0.5951506  1.9626467  0.5908451
+10 10  0.3378783 0.7362995 -1.2170893  0.3645206  1.7311911  0.3602255
+11 11  0.6540748 0.7355735 -0.8984514  0.6802672  2.0474166  0.6759553
+12 12 -1.3094016 0.7177656 -2.8383112 -1.2797392  0.0422004 -1.2840506
             kld
-1  1.258930e-04
-2  4.594228e-05
-3  4.693167e-05
-4  4.560217e-05
-5  4.518199e-05
-6  1.399457e-04
-7  3.374617e-05
-8  4.615163e-05
-9  3.336982e-05
-10 3.341361e-05
-11 3.351842e-05
-12 4.479230e-05</code></pre>
+1  1.258929e-04
+2  4.594226e-05
+3  4.693164e-05
+4  4.560215e-05
+5  4.518196e-05
+6  1.399454e-04
+7  3.374614e-05
+8  4.615160e-05
+9  3.336979e-05
+10 3.341358e-05
+11 3.351839e-05
+12 4.479227e-05</code></pre>
 </div>
 </div>
 <section id="marginal-effects-1" class="level5">
@@ -2053,10 +2050,10 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="sourceCode cell-code" id="cb108"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb108-1"><a href="#cb108-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(inla_40_60)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.145, Running = 0.297, Post = 0.0557, Total = 0.497 
+    Pre = 0.136, Running = 0.286, Post = 0.0716, Total = 0.493 
 Fixed effects:
                   mean    sd 0.025quant 0.5quant 0.975quant   mode kld
-(Intercept)     -6.374 1.161     -8.626   -6.384     -4.057 -6.383   0
+(Intercept)     -6.374 1.161     -8.626   -6.385     -4.058 -6.383   0
 T2M              0.224 0.028      0.170    0.224      0.278  0.224   0
 PRECTOTCORR      0.015 0.006      0.003    0.015      0.026  0.015   0
 RH2M             0.037 0.006      0.026    0.037      0.048  0.037   0
@@ -2071,8 +2068,8 @@ Model hyperparameters:
 Precision for year1 0.232 0.127       0.06    0.207      0.546 0.16
 
 Deviance Information Criterion (DIC) ...............: 3253.00
-Deviance Information Criterion (DIC, saturated) ....: 3246.52
-Effective number of parameters .....................: 15.61
+Deviance Information Criterion (DIC, saturated) ....: 3246.53
+Effective number of parameters .....................: 15.62
 
 Watanabe-Akaike information criterion (WAIC) ...: 3251.56
 Effective number of parameters .................: 14.11
@@ -2088,31 +2085,31 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="cell-output cell-output-stdout">
 <pre><code>$year1
    ID       mean        sd 0.025quant   0.5quant 0.975quant       mode
-1   1  3.6006489 1.4061788  1.1975872  3.4686099  6.7920475  3.2723965
-2   2 -1.8279101 0.7204858 -3.3635921 -1.7979021 -0.4711768 -1.8022090
-3   3 -1.8598481 0.7193685 -3.3936132 -1.8298000 -0.5051729 -1.8341104
-4   4 -2.3376709 0.7216087 -3.8762475 -2.3073104 -0.9800011 -2.3115891
-5   5 -1.0744840 0.7215353 -2.6111262 -1.0448627  0.2851946 -1.0491917
-6   6  4.2780481 1.3391016  2.0047048  4.1474974  7.3293131  3.9608710
-7   7  0.6251701 0.7399146 -0.9368913  0.6516247  2.0266583  0.6473036
-8   8 -1.5716793 0.7204138 -3.1072044 -1.5416872 -0.2150263 -1.5459988
-9   9  0.6072463 0.7401820 -0.9552390  0.6336783  2.0092770  0.6293597
-10 10  0.2773998 0.7408248 -1.2875180  0.3043362  1.6790920  0.3000339
-11 11  0.5418845 0.7400914 -1.0208369  0.5684742  1.9432910  0.5641574
-12 12 -1.2565732 0.7228629 -2.7959020 -1.2268362  0.1050897 -1.2311519
+1   1  3.5984055 1.4049764  1.1975903  3.4664232  6.7875851  3.2704640
+2   2 -1.8274523 0.7197725 -3.3616912 -1.7974711 -0.4721450 -1.8017975
+3   3 -1.8593912 0.7186540 -3.3917114 -1.8293700 -0.5061447 -1.8337000
+4   4 -2.3372060 0.7208967 -3.8743439 -2.3068718 -0.9809607 -2.3111704
+5   5 -1.0740308 0.7208230 -2.6092295 -1.0444365  0.2842251 -1.0487844
+6   6  4.2758399 1.3379539  2.0046604  4.1453335  7.3250222  3.9589546
+7   7  0.6255944 0.7392191 -0.9350366  0.6520214  2.0257047  0.6476863
+8   8 -1.5712218 0.7197005 -3.1053036 -1.5412565 -0.2159949 -1.5455877
+9   9  0.6076705 0.7394867 -0.9533848  0.6340750  2.0083239  0.6297424
+10 10  0.2778335 0.7401305 -1.2856589  0.3047427  1.6781488  0.3004259
+11 11  0.5423113 0.7393962 -1.0189809  0.5688735  1.9423400  0.5645426
+12 12 -1.2561164 0.7221520 -2.7940049 -1.2264062  0.1041264 -1.2307408
             kld
-1  1.263643e-04
-2  4.584140e-05
-3  4.655703e-05
-4  4.539329e-05
-5  4.496791e-05
-6  1.399495e-04
-7  3.360720e-05
-8  4.588656e-05
-9  3.347299e-05
-10 3.343875e-05
-11 3.359574e-05
-12 4.425770e-05</code></pre>
+1  1.274159e-04
+2  4.625580e-05
+3  4.697841e-05
+4  4.580338e-05
+5  4.537376e-05
+6  1.412139e-04
+7  3.390468e-05
+8  4.630138e-05
+9  3.376920e-05
+10 3.373462e-05
+11 3.389310e-05
+12 4.465667e-05</code></pre>
 </div>
 </div>
 <section id="marginal-effects-2" class="level5">
@@ -2391,7 +2388,7 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="sourceCode cell-code" id="cb125"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb125-1"><a href="#cb125-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(inla_60_80)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.142, Running = 0.288, Post = 0.0508, Total = 0.481 
+    Pre = 0.138, Running = 0.283, Post = 0.114, Total = 0.535 
 Fixed effects:
                   mean    sd 0.025quant 0.5quant 0.975quant   mode kld
 (Intercept)     -4.127 1.156     -6.368   -4.138     -1.821 -4.136   0
@@ -2426,31 +2423,31 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="cell-output cell-output-stdout">
 <pre><code>$year1
    ID       mean        sd 0.025quant   0.5quant 0.975quant       mode
-1   1  3.4320887 1.3974849  1.0408064  3.3018863  6.6007520  3.1067629
-2   2 -1.8640857 0.7077880 -3.3729344 -1.8344698 -0.5319148 -1.8387100
-3   3 -1.8888348 0.7060924 -3.3949703 -1.8590798 -0.5600165 -1.8633217
-4   4 -2.3188414 0.7085555 -3.8299950 -2.2888529 -0.9864130 -2.2930662
-5   5 -1.1128555 0.7084088 -2.6220858 -1.0835478  0.2212880 -1.0878085
-6   6  4.2100036 1.3190619  1.9707165  4.0814605  7.2149993  3.8975353
-7   7  0.6493273 0.7275715 -0.8865664  0.6753892  2.0269581  0.6711382
-8   8 -1.4763181 0.7071899 -2.9839501 -1.4467628 -0.1450159 -1.4510136
-9   9  0.5866518 0.7275343 -0.9492227  0.6127364  1.9641430  0.6084867
-10 10  0.4223024 0.7278893 -1.1147053  0.4485837  1.7998444  0.4443419
-11 11  0.5299473 0.7276111 -1.0061333  0.5560633  1.9074788  0.5518172
-12 12 -1.1671516 0.7088554 -2.6774800 -1.1377285  0.1674385 -1.1419817
+1   1  3.4320897 1.3974855  1.0408064  3.3018873  6.6007540  3.1067638
+2   2 -1.8640859 0.7077884 -3.3729353 -1.8344700 -0.5319144 -1.8387102
+3   3 -1.8888350 0.7060927 -3.3949712 -1.8590800 -0.5600160 -1.8633219
+4   4 -2.3188417 0.7085558 -3.8299958 -2.2888531 -0.9864125 -2.2930664
+5   5 -1.1128557 0.7084092 -2.6220867 -1.0835480  0.2212884 -1.0878087
+6   6  4.2100046 1.3190624  1.9707165  4.0814615  7.2150013  3.8975362
+7   7  0.6493271 0.7275719 -0.8865672  0.6753891  2.0269585  0.6711380
+8   8 -1.4763183 0.7071902 -2.9839510 -1.4467630 -0.1450155 -1.4510138
+9   9  0.5866516 0.7275346 -0.9492235  0.6127362  1.9641434  0.6084865
+10 10  0.4223022 0.7278896 -1.1147061  0.4485835  1.7998448  0.4443417
+11 11  0.5299471 0.7276114 -1.0061341  0.5560631  1.9074793  0.5518170
+12 12 -1.1671518 0.7088558 -2.6774809 -1.1377287  0.1674389 -1.1419818
             kld
-1  1.236003e-04
-2  4.564313e-05
-3  4.680694e-05
-4  4.542466e-05
-5  4.507245e-05
-6  1.376663e-04
-7  3.311937e-05
-8  4.598555e-05
-9  3.314225e-05
-10 3.307888e-05
-11 3.311496e-05
-12 4.488415e-05</code></pre>
+1  1.235999e-04
+2  4.564296e-05
+3  4.680676e-05
+4  4.542449e-05
+5  4.507228e-05
+6  1.376658e-04
+7  3.311925e-05
+8  4.598538e-05
+9  3.314213e-05
+10 3.307876e-05
+11 3.311484e-05
+12 4.488398e-05</code></pre>
 </div>
 </div>
 <section id="marginal-effects-3" class="level5">
@@ -2914,12 +2911,15 @@ of ggplot2 3.3.4.</code></pre>
 </div>
 </div>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb157"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb157-1"><a href="#cb157-1" aria-hidden="true" tabindex="-1"></a>(map_plot<span class="sc">+</span>sev_plot<span class="sc">/</span>year_plot)<span class="sc">+</span></span>
-<span id="cb157-2"><a href="#cb157-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">plot_annotation</span>(<span class="at">tag_levels =</span> <span class="st">"a"</span>, <span class="at">tag_prefix =</span> <span class="st">"("</span>, <span class="at">tag_suffix =</span> <span class="st">")"</span>) <span class="sc">&amp;</span> </span>
-<span id="cb157-3"><a href="#cb157-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">plot.tag =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">"bold"</span>, <span class="at">size =</span> <span class="dv">12</span>),<span class="at">label_x =</span> <span class="sc">-</span><span class="fl">0.03</span>, <span class="at">label_y =</span><span class="dv">1</span>)  </span>
-<span id="cb157-4"><a href="#cb157-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb157-5"><a href="#cb157-5" aria-hidden="true" tabindex="-1"></a><span class="fu">ggsave</span>(<span class="st">"fig/map_sev_year.png"</span>, <span class="at">dpi =</span> <span class="dv">600</span>, <span class="at">bg =</span> <span class="st">"white"</span>,</span>
-<span id="cb157-6"><a href="#cb157-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">width =</span> <span class="dv">10</span>, <span class="at">height =</span> <span class="dv">8</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb157"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb157-1"><a href="#cb157-1" aria-hidden="true" tabindex="-1"></a>(map_plot <span class="sc">+</span> (sev_plot <span class="sc">/</span> year_plot)) <span class="sc">+</span> </span>
+<span id="cb157-2"><a href="#cb157-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">plot_layout</span>(<span class="at">design =</span> <span class="st">"AB</span></span>
+<span id="cb157-3"><a href="#cb157-3" aria-hidden="true" tabindex="-1"></a><span class="st">                        AB"</span>, <span class="at">widths =</span> <span class="fu">c</span>(<span class="dv">2</span>, <span class="dv">1</span>)) <span class="sc">+</span></span>
+<span id="cb157-4"><a href="#cb157-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">plot_annotation</span>(<span class="at">tag_levels =</span> <span class="st">"a"</span>, <span class="at">tag_prefix =</span> <span class="st">"("</span>, <span class="at">tag_suffix =</span> <span class="st">")"</span>) <span class="sc">&amp;</span> </span>
+<span id="cb157-5"><a href="#cb157-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">plot.tag =</span> <span class="fu">element_text</span>(<span class="at">face =</span> <span class="st">"bold"</span>, <span class="at">size =</span> <span class="dv">12</span>), <span class="at">label_x =</span> <span class="sc">-</span><span class="fl">0.03</span>, <span class="at">label_y =</span> <span class="dv">1</span>)</span>
+<span id="cb157-6"><a href="#cb157-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb157-7"><a href="#cb157-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb157-8"><a href="#cb157-8" aria-hidden="true" tabindex="-1"></a><span class="fu">ggsave</span>(<span class="st">"fig/map_sev_year.png"</span>, <span class="at">dpi =</span> <span class="dv">600</span>, <span class="at">bg =</span> <span class="st">"white"</span>,</span>
+<span id="cb157-9"><a href="#cb157-9" aria-hidden="true" tabindex="-1"></a>       <span class="at">width =</span> <span class="dv">10</span>, <span class="at">height =</span> <span class="dv">8</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="overall" class="level1">

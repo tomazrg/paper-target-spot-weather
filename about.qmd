@@ -916,11 +916,9 @@ ggsave("fig/covariates.png", dpi = 600, bg = "white", height = 6, width = 10)
 
 ```
 
-# INLA - Integrated Nested Laplace Approximation
+# Framework modeling
 
-## Framework modeling
-
-### Selecting of models
+## Selecting of models
 ```{r}
 wd_0_60 = weather_data %>% 
   dplyr::filter(days >= 0 & days <= 60)
@@ -973,9 +971,9 @@ ln_bf
 ```
 
 
-### By windows
+## By windows
 
-#### 0 to 20
+### 0 to 20
 ```{r}
 wd_0_20 = weather_data %>% 
   dplyr::filter(days >= 0 & days <= 20)
@@ -1968,9 +1966,12 @@ year_plot
 
 ```{r,eval = FALSE, echo = TRUE}
 
-(map_plot+sev_plot/year_plot)+
-    plot_annotation(tag_levels = "a", tag_prefix = "(", tag_suffix = ")") & 
-  theme(plot.tag = element_text(face = "bold", size = 12),label_x = -0.03, label_y =1)  
+(map_plot + (sev_plot / year_plot)) + 
+  plot_layout(design = "AB
+                        AB", widths = c(2, 1)) +
+  plot_annotation(tag_levels = "a", tag_prefix = "(", tag_suffix = ")") & 
+  theme(plot.tag = element_text(face = "bold", size = 12), label_x = -0.03, label_y = 1)
+
 
 ggsave("fig/map_sev_year.png", dpi = 600, bg = "white",
        width = 10, height = 8)
