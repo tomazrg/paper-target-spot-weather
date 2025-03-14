@@ -1977,7 +1977,9 @@ ggsave("fig/map_sev_year.png", dpi = 600, bg = "white",
        width = 10, height = 8)
 ```
 ![](fig/map_sev_year.png)
+
 # Overall
+
 ```{r,eval = FALSE, echo = TRUE}
 
 wd_60_8022 = weather_data %>% 
@@ -2195,7 +2197,7 @@ for(i in 1:nrow(wd_0_20))
 mean(acc)
 ```
 
-# PREDICTION WITH INLA.BRU TO FUTURE DATA
+# PREDICTION WITH INLA.BRU (FUTURE)
 
 ```{r,eval = FALSE, echo = TRUE}
 

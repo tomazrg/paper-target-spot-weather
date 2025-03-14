@@ -185,7 +185,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#scenarios" id="toc-scenarios" class="nav-link" data-scroll-target="#scenarios">Scenarios</a></li>
   </ul></li>
   </ul></li>
-  <li><a href="#map" id="toc-map" class="nav-link" data-scroll-target="#map">Map</a>
+  <li><a href="#map" id="toc-map" class="nav-link" data-scroll-target="#map">Map</a></li>
+  <li><a href="#overall" id="toc-overall" class="nav-link" data-scroll-target="#overall">Overall</a>
   <ul class="collapse">
   <li><a href="#loocv" id="toc-loocv" class="nav-link" data-scroll-target="#loocv">LOOCV</a></li>
   </ul></li>
@@ -193,7 +194,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#loocv-1" id="toc-loocv-1" class="nav-link" data-scroll-target="#loocv-1">LOOCV</a></li>
   </ul></li>
-  <li><a href="#prediction-with-inla.bru-to-future-data" id="toc-prediction-with-inla.bru-to-future-data" class="nav-link" data-scroll-target="#prediction-with-inla.bru-to-future-data">PREDICTION WITH INLA.BRU TO FUTURE DATA</a></li>
+  <li><a href="#prediction-with-inla.bru-future" id="toc-prediction-with-inla.bru-future" class="nav-link" data-scroll-target="#prediction-with-inla.bru-future">PREDICTION WITH INLA.BRU (FUTURE)</a></li>
   </ul>
 </nav>
     </div>
@@ -1201,7 +1202,7 @@ Anexando pacote: 'cowplot'</code></pre>
 <span id="cb42-16"><a href="#cb42-16" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(inla_0_60)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.269, Running = 0.665, Post = 0.112, Total = 1.05 
+    Pre = 0.328, Running = 0.715, Post = 0.203, Total = 1.25 
 Fixed effects:
               mean    sd 0.025quant 0.5quant 0.975quant   mode kld
 (Intercept) -4.331 0.952     -6.147   -4.356     -2.362 -4.352   0
@@ -1262,7 +1263,7 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <span id="cb45-15"><a href="#cb45-15" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(model_reduced)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.132, Running = 0.201, Post = 0.317, Total = 0.651 
+    Pre = 0.176, Running = 0.234, Post = 0.091, Total = 0.501 
 Fixed effects:
               mean    sd 0.025quant 0.5quant 0.975quant   mode kld
 (Intercept) -3.614 0.378     -4.355   -3.614     -2.873 -3.614   0
@@ -1365,7 +1366,7 @@ log marginal-likelihood (Gaussian)    1053.888</code></pre>
 <div class="sourceCode cell-code" id="cb53"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(inla_0_20)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.14, Running = 0.281, Post = 0.0868, Total = 0.508 
+    Pre = 0.187, Running = 0.357, Post = 0.0732, Total = 0.617 
 Fixed effects:
               mean    sd 0.025quant 0.5quant 0.975quant   mode kld
 (Intercept) -4.390 0.974     -6.269   -4.405     -2.424 -4.402   0
@@ -1399,31 +1400,31 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="cell-output cell-output-stdout">
 <pre><code>$year1
    ID       mean        sd 0.025quant   0.5quant  0.975quant       mode
-1   1  3.3857407 1.4104487  0.9691892  3.2553449  6.58167247  3.0584721
-2   2 -1.8049505 0.7115334 -3.3211580 -1.7754028 -0.46526389 -1.7796872
-3   3 -1.9029894 0.7100121 -3.4168180 -1.8732918 -0.56638782 -1.8775749
-4   4 -2.3630546 0.7124727 -3.8820238 -2.3330721 -1.02298795 -2.3373230
-5   5 -1.0321778 0.7126943 -2.5496573 -1.0029703  0.31052060 -1.0072716
-6   6  4.2341321 1.3237743  1.9850066  4.1057496  7.24853772  3.9212002
-7   7  0.4925630 0.7313644 -1.0515174  0.5188705  1.87689474  0.5145988
-8   8 -1.5477560 0.7113387 -3.0638177 -1.5181267 -0.20864721 -1.5224087
-9   9  0.6058845 0.7317304 -0.9381585  0.6319136  1.99169185  0.6276392
-10 10  0.2839309 0.7319501 -1.2618759  0.3105036  1.66852476  0.3062428
-11 11  0.9360970 0.7332247 -0.6084859  0.9612735  2.32709558  0.9570015
-12 12 -1.2852275 0.7142955 -2.8061976 -1.2557778  0.05957507 -1.2600552
+1   1  3.3857410 1.4104488  0.9691892  3.2553452  6.58167312  3.0584724
+2   2 -1.8049506 0.7115335 -3.3211583 -1.7754029 -0.46526375 -1.7796872
+3   3 -1.9029894 0.7100122 -3.4168183 -1.8732918 -0.56638768 -1.8775750
+4   4 -2.3630547 0.7124728 -3.8820241 -2.3330721 -1.02298780 -2.3373231
+5   5 -1.0321779 0.7126944 -2.5496576 -1.0029704  0.31052075 -1.0072716
+6   6  4.2341324 1.3237745  1.9850066  4.1057499  7.24853834  3.9212005
+7   7  0.4925629 0.7313645 -1.0515177  0.5188704  1.87689488  0.5145987
+8   8 -1.5477561 0.7113388 -3.0638180 -1.5181267 -0.20864707 -1.5224088
+9   9  0.6058844 0.7317305 -0.9381587  0.6319136  1.99169199  0.6276391
+10 10  0.2839309 0.7319502 -1.2618762  0.3105036  1.66852490  0.3062428
+11 11  0.9360970 0.7332248 -0.6084862  0.9612735  2.32709572  0.9570015
+12 12 -1.2852276 0.7142956 -2.8061979 -1.2557778  0.05957522 -1.2600553
             kld
-1  1.227523e-04
-2  4.527063e-05
-3  4.631041e-05
-4  4.498355e-05
-5  4.435690e-05
+1  1.227522e-04
+2  4.527061e-05
+3  4.631039e-05
+4  4.498353e-05
+5  4.435688e-05
 6  1.364483e-04
-7  3.300913e-05
-8  4.544906e-05
+7  3.300912e-05
+8  4.544905e-05
 9  3.270647e-05
-10 3.287963e-05
-11 3.162343e-05
-12 4.356400e-05</code></pre>
+10 3.287962e-05
+11 3.162342e-05
+12 4.356398e-05</code></pre>
 </div>
 </div>
 <section id="marginal-effects" class="level4">
@@ -1654,7 +1655,7 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="sourceCode cell-code" id="cb67"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(inla_20_40)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.137, Running = 0.283, Post = 0.0808, Total = 0.5 
+    Pre = 0.221, Running = 0.353, Post = 0.0787, Total = 0.653 
 Fixed effects:
                   mean    sd 0.025quant 0.5quant 0.975quant   mode kld
 (Intercept)     -4.213 1.071     -6.285   -4.226     -2.065 -4.224   0
@@ -1689,31 +1690,31 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="cell-output cell-output-stdout">
 <pre><code>$year1
    ID       mean        sd 0.025quant   0.5quant  0.975quant       mode
-1   1  3.4841420 1.4091446  1.0732497  3.3527202  6.68021418  3.1561170
-2   2 -1.8328218 0.7160195 -3.3589637 -1.8029948 -0.48474191 -1.8073006
-3   3 -1.8488349 0.7144922 -3.3723591 -1.8189520 -0.50357517 -1.8232628
-4   4 -2.3506427 0.7169625 -3.8793647 -2.3204587 -1.00195235 -2.3247367
-5   5 -1.0694971 0.7168648 -2.5962235 -1.0400582  0.28117792 -1.0443860
-6   6  4.2924302 1.3285120  2.0372633  4.1628953  7.31964593  3.9777714
-7   7  0.5902256 0.7352813 -0.9622387  0.6166025  1.98250333  0.6122914
-8   8 -1.5141551 0.7156261 -3.0394434 -1.4843895 -0.16658502 -1.4887035
-9   9  0.5688289 0.7360507 -0.9848900  0.5951506  1.96264662  0.5908451
-10 10  0.3378784 0.7362995 -1.2170892  0.3645207  1.73119102  0.3602256
-11 11  0.6540749 0.7355734 -0.8984512  0.6802673  2.04741649  0.6759553
-12 12 -1.3094016 0.7177655 -2.8383110 -1.2797392  0.04220031 -1.2840506
+1   1  3.4841420 1.4091446  1.0732497  3.3527202  6.68021410  3.1561170
+2   2 -1.8328218 0.7160195 -3.3589638 -1.8029948 -0.48474186 -1.8073006
+3   3 -1.8488349 0.7144922 -3.3723593 -1.8189520 -0.50357511 -1.8232628
+4   4 -2.3506427 0.7169626 -3.8793648 -2.3204587 -1.00195229 -2.3247368
+5   5 -1.0694971 0.7168649 -2.5962236 -1.0400582  0.28117798 -1.0443860
+6   6  4.2924302 1.3285120  2.0372633  4.1628953  7.31964598  3.9777714
+7   7  0.5902256 0.7352814 -0.9622388  0.6166025  1.98250339  0.6122914
+8   8 -1.5141551 0.7156262 -3.0394435 -1.4843895 -0.16658496 -1.4887035
+9   9  0.5688289 0.7360507 -0.9848901  0.5951506  1.96264668  0.5908451
+10 10  0.3378784 0.7362995 -1.2170893  0.3645207  1.73119107  0.3602256
+11 11  0.6540749 0.7355734 -0.8984513  0.6802673  2.04741655  0.6759553
+12 12 -1.3094016 0.7177655 -2.8383111 -1.2797392  0.04220037 -1.2840506
             kld
-1  1.258929e-04
-2  4.594228e-05
-3  4.693167e-05
-4  4.560217e-05
-5  4.518199e-05
-6  1.399455e-04
-7  3.374616e-05
-8  4.615163e-05
-9  3.336980e-05
-10 3.341360e-05
-11 3.351841e-05
-12 4.479230e-05</code></pre>
+1  1.258953e-04
+2  4.594315e-05
+3  4.693254e-05
+4  4.560303e-05
+5  4.518284e-05
+6  1.399491e-04
+7  3.374685e-05
+8  4.615249e-05
+9  3.337049e-05
+10 3.341429e-05
+11 3.351910e-05
+12 4.479315e-05</code></pre>
 </div>
 </div>
 <section id="marginal-effects-1" class="level4">
@@ -1940,7 +1941,7 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="sourceCode cell-code" id="cb81"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(inla_40_60)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.15, Running = 0.281, Post = 0.0788, Total = 0.51 
+    Pre = 0.209, Running = 0.337, Post = 0.108, Total = 0.654 
 Fixed effects:
                   mean    sd 0.025quant 0.5quant 0.975quant   mode kld
 (Intercept)     -6.374 1.161     -8.626   -6.384     -4.057 -6.383   0
@@ -1975,31 +1976,31 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="cell-output cell-output-stdout">
 <pre><code>$year1
    ID       mean        sd 0.025quant   0.5quant 0.975quant       mode
-1   1  3.6006333 1.4061704  1.1975872  3.4685946  6.7920163  3.2723830
-2   2 -1.8279069 0.7204808 -3.3635788 -1.7978991 -0.4711835 -1.8022061
-3   3 -1.8598449 0.7193635 -3.3936000 -1.8297970 -0.5051797 -1.8341075
-4   4 -2.3376677 0.7216037 -3.8762342 -2.3073073 -0.9800078 -2.3115862
-5   5 -1.0744808 0.7215303 -2.6111130 -1.0448598  0.2851878 -1.0491888
-6   6  4.2780327 1.3390936  2.0047045  4.1474824  7.3292832  3.9608577
-7   7  0.6251730 0.7399097 -0.9368784  0.6516274  2.0266517  0.6473063
-8   8 -1.5716761 0.7204089 -3.1071912 -1.5416842 -0.2150330 -1.5459960
-9   9  0.6072492 0.7401771 -0.9552261  0.6336811  2.0092704  0.6293624
-10 10  0.2774028 0.7408199 -1.2875050  0.3043390  1.6790854  0.3000366
-11 11  0.5418875 0.7400865 -1.0208239  0.5684769  1.9432844  0.5641601
-12 12 -1.2565701 0.7228580 -2.7958888 -1.2268332  0.1050830 -1.2311490
+1   1  3.6006501 1.4061795  1.1975872  3.4686110  6.7920499  3.2723975
+2   2 -1.8279103 0.7204861 -3.3635931 -1.7979024 -0.4711763 -1.8022092
+3   3 -1.8598483 0.7193688 -3.3936143 -1.8298003 -0.5051724 -1.8341106
+4   4 -2.3376712 0.7216091 -3.8762485 -2.3073106 -0.9800006 -2.3115894
+5   5 -1.0744842 0.7215357 -2.6111273 -1.0448630  0.2851951 -1.0491919
+6   6  4.2780493 1.3391022  2.0047048  4.1474986  7.3293155  3.9608721
+7   7  0.6251699 0.7399150 -0.9368923  0.6516245  2.0266588  0.6473034
+8   8 -1.5716795 0.7204142 -3.1072054 -1.5416874 -0.2150257 -1.5459990
+9   9  0.6072460 0.7401823 -0.9552400  0.6336781  2.0092775  0.6293595
+10 10  0.2773996 0.7408252 -1.2875190  0.3043360  1.6790925  0.3000337
+11 11  0.5418843 0.7400918 -1.0208379  0.5684739  1.9432915  0.5641572
+12 12 -1.2565735 0.7228633 -2.7959031 -1.2268365  0.1050902 -1.2311521
             kld
-1  1.263721e-04
-2  4.584444e-05
-3  4.656013e-05
-4  4.539630e-05
-5  4.497090e-05
-6  1.399589e-04
-7  3.360940e-05
-8  4.588961e-05
-9  3.347518e-05
-10 3.344094e-05
-11 3.359794e-05
-12 4.426063e-05</code></pre>
+1  1.263635e-04
+2  4.584107e-05
+3  4.655670e-05
+4  4.539297e-05
+5  4.496759e-05
+6  1.399484e-04
+7  3.360696e-05
+8  4.588623e-05
+9  3.347275e-05
+10 3.343851e-05
+11 3.359549e-05
+12 4.425738e-05</code></pre>
 </div>
 </div>
 <section id="marginal-effects-2" class="level4">
@@ -2278,7 +2279,7 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="sourceCode cell-code" id="cb98"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb98-1"><a href="#cb98-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(inla_60_80)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Time used:
-    Pre = 0.142, Running = 0.294, Post = 0.0889, Total = 0.525 
+    Pre = 0.19, Running = 0.336, Post = 0.0855, Total = 0.612 
 Fixed effects:
                   mean    sd 0.025quant 0.5quant 0.975quant   mode kld
 (Intercept)     -4.127 1.156     -6.368   -4.138     -1.821 -4.136   0
@@ -2313,31 +2314,31 @@ Posterior summaries for the linear predictor and the fitted values are computed
 <div class="cell-output cell-output-stdout">
 <pre><code>$year1
    ID       mean        sd 0.025quant   0.5quant 0.975quant       mode
-1   1  3.4321051 1.3974938  1.0408063  3.3019022  6.6007846  3.1067770
-2   2 -1.8640890 0.7077932 -3.3729483 -1.8344730 -0.5319078 -1.8387130
-3   3 -1.8888381 0.7060976 -3.3949842 -1.8590830 -0.5600095 -1.8633247
-4   4 -2.3188448 0.7085606 -3.8300089 -2.2888561 -0.9864060 -2.2930692
-5   5 -1.1128588 0.7084140 -2.6220997 -1.0835509  0.2212950 -1.0878115
-6   6  4.2100197 1.3190703  1.9707169  4.0814763  7.2150305  3.8975493
-7   7  0.6493242 0.7275766 -0.8865799  0.6753863  2.0269650  0.6711354
-8   8 -1.4763215 0.7071951 -2.9839640 -1.4467660 -0.1450089 -1.4510166
-9   9  0.5866487 0.7275393 -0.9492362  0.6127335  1.9641498  0.6084839
-10 10  0.4222993 0.7278944 -1.1147188  0.4485808  1.7998512  0.4443390
-11 11  0.5299442 0.7276161 -1.0061468  0.5560603  1.9074857  0.5518144
-12 12 -1.1671549 0.7088606 -2.6774939 -1.1377316  0.1674455 -1.1419847
+1   1  3.4320936 1.3974876  1.0408064  3.3018911  6.6007618  3.1067672
+2   2 -1.8640867 0.7077896 -3.3729386 -1.8344708 -0.5319127 -1.8387109
+3   3 -1.8888358 0.7060940 -3.3949745 -1.8590808 -0.5600144 -1.8633226
+4   4 -2.3188425 0.7085570 -3.8299992 -2.2888539 -0.9864109 -2.2930671
+5   5 -1.1128565 0.7084104 -2.6220900 -1.0835487  0.2212901 -1.0878094
+6   6  4.2100084 1.3190644  1.9707166  4.0814653  7.2150087  3.8975395
+7   7  0.6493263 0.7275731 -0.8865705  0.6753884  2.0269602  0.6711374
+8   8 -1.4763191 0.7071915 -2.9839543 -1.4467638 -0.1450138 -1.4510145
+9   9  0.5866509 0.7275358 -0.9492268  0.6127355  1.9641450  0.6084859
+10 10  0.4223015 0.7278908 -1.1147094  0.4485828  1.7998465  0.4443410
+11 11  0.5299464 0.7276126 -1.0061374  0.5560624  1.9074809  0.5518163
+12 12 -1.1671526 0.7088570 -2.6774842 -1.1377294  0.1674406 -1.1419826
             kld
-1  1.235947e-04
-2  4.564081e-05
-3  4.680455e-05
-4  4.542235e-05
-5  4.507017e-05
-6  1.376601e-04
-7  3.311779e-05
-8  4.598321e-05
-9  3.314066e-05
-10 3.307730e-05
-11 3.311338e-05
-12 4.488188e-05</code></pre>
+1  1.236008e-04
+2  4.564316e-05
+3  4.680696e-05
+4  4.542469e-05
+5  4.507249e-05
+6  1.376672e-04
+7  3.311947e-05
+8  4.598558e-05
+9  3.314235e-05
+10 3.307898e-05
+11 3.311506e-05
+12 4.488418e-05</code></pre>
 </div>
 </div>
 <section id="marginal-effects-3" class="level4">
@@ -2796,7 +2797,10 @@ of ggplot2 3.3.4.</code></pre>
 <span id="cb129-8"><a href="#cb129-8" aria-hidden="true" tabindex="-1"></a><span class="fu">ggsave</span>(<span class="st">"fig/map_sev_year.png"</span>, <span class="at">dpi =</span> <span class="dv">600</span>, <span class="at">bg =</span> <span class="st">"white"</span>,</span>
 <span id="cb129-9"><a href="#cb129-9" aria-hidden="true" tabindex="-1"></a>       <span class="at">width =</span> <span class="dv">10</span>, <span class="at">height =</span> <span class="dv">8</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p><img src="fig/map_sev_year.png" class="img-fluid"> # Overall</p>
+<p><img src="fig/map_sev_year.png" class="img-fluid"></p>
+</section>
+<section id="overall" class="level1">
+<h1>Overall</h1>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb130"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb130-1"><a href="#cb130-1" aria-hidden="true" tabindex="-1"></a>wd_60_8022 <span class="ot">=</span> weather_data <span class="sc">%&gt;%</span> </span>
 <span id="cb130-2"><a href="#cb130-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(days <span class="sc">&gt;=</span> <span class="dv">0</span> <span class="sc">&amp;</span> days <span class="sc">&lt;=</span> <span class="dv">60</span>)</span>
@@ -3005,8 +3009,8 @@ of ggplot2 3.3.4.</code></pre>
 </div>
 </section>
 </section>
-<section id="prediction-with-inla.bru-to-future-data" class="level1">
-<h1>PREDICTION WITH INLA.BRU TO FUTURE DATA</h1>
+<section id="prediction-with-inla.bru-future" class="level1">
+<h1>PREDICTION WITH INLA.BRU (FUTURE)</h1>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb138"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb138-1"><a href="#cb138-1" aria-hidden="true" tabindex="-1"></a>wd_0_203 <span class="ot">=</span> wd_0_20 <span class="sc">%&gt;%</span> </span>
 <span id="cb138-2"><a href="#cb138-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(<span class="sc">-</span>epidemic)</span>
