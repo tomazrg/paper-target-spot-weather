@@ -1,10 +1,10 @@
 ---
-title: "About"
+title: ""
 ---
 
 # Packages
 
-```{r}
+```{r,warning = FALSE, message = FALSE, echo = TRUE}
 
 library(dplyr)
 library(purrr)
@@ -1031,7 +1031,7 @@ summary(inla_0_20)
 inla_0_20$summary.random
 ```
 
-##### Marginal effects
+#### Marginal effects
 
 
 ```{r}
@@ -1106,7 +1106,7 @@ ggplot(marg_0_20_4, aes(x, y, color = windows)) +
   theme(text = element_text(size = 12, face = "bold"))
 ```
 
-##### Prediction
+#### Prediction
 
 ```{r}
 #inla_0_20$summary.fitted.values
@@ -1154,7 +1154,7 @@ ggplot() +
 plot_0_20
 ```
 
-#### 20 to 40
+### 20 to 40
 
 ```{r}
 wd_20_40 = weather_data %>% 
@@ -1216,7 +1216,7 @@ summary(inla_20_40)
 inla_20_40$summary.random
 ```
 
-##### Marginal effects
+#### Marginal effects
 
 ```{r}
 
@@ -1290,7 +1290,7 @@ ggplot(marg_20_40_4, aes(x, y, color = windows)) +
   theme(text = element_text(size = 12, face = "bold"))
 ```
 
-##### Prediction
+#### Prediction
 
 ```{r}
 #inla_20_40$summary.fitted.values
@@ -1334,7 +1334,7 @@ ggplot() +
 plot_20_40
 ```
 
-#### 40 to 60
+### 40 to 60
 
 ```{r}
 wd_40_60 = weather_data %>% 
@@ -1397,7 +1397,7 @@ summary(inla_40_60)
 inla_40_60$summary.random
 ```
 
-##### Marginal effects
+#### Marginal effects
 ```{r}
 
 marg_40_60_1 <- inla_40_60$marginals.fixed[[1]] # Intercept
@@ -1471,7 +1471,7 @@ ggplot(marg_40_60_4, aes(x, y, color = windows)) +
   theme(text = element_text(size = 12, face = "bold"))
 ```
 
-##### Prediction
+#### Prediction
 
 ```{r}
 #inla_40_60$summary.fitted.values
@@ -1517,7 +1517,7 @@ plot_40_60
 
 ```
 
-#### 60 to 80
+### 60 to 80
 ```{r}
 wd_60_80 = weather_data %>% 
   dplyr::filter(days >= 60 & days <= 80)
@@ -1608,7 +1608,7 @@ summary(inla_60_80)
 inla_60_80$summary.random
 ```
 
-##### Marginal effects
+#### Marginal effects
 ```{r}
 
 marg_60_80_1 <- inla_60_80$marginals.fixed[[1]] # Intercept
@@ -1683,7 +1683,7 @@ ggplot(marg_60_80_4, aes(x, y, color = windows)) +
 ```
 
 
-##### Prediction
+#### Prediction
 
 ```{r}
 #inla_60_80$summary.fitted.values
@@ -1728,7 +1728,7 @@ ggplot() +
 plot_60_80
 ```
 
-#### Joining
+### Joining
 
 ```{r}
 plot_grid(plot_0_20,plot_20_40,plot_40_60,plot_60_80, ncol = 4)
@@ -1737,7 +1737,7 @@ plot_grid(plot_0_20,plot_20_40,plot_40_60,plot_60_80, ncol = 4)
 ggsave("fig/INLA_prediction.png", dpi = 600, bg = "white",
         height = 6, width = 10)
 ```
-## Marginal plotting
+### Marginal plotting
 ```{r}
 
 
@@ -1764,7 +1764,7 @@ ggsave("fig/marginal_effects.png", dpi = 600, bg = "white",
        height = 6, width = 8)
 ```
 
-## Random (Year)
+### Random (Year)
 ```{r}
 year_0_20 = inla_0_20$summary.random
 year_0_20 = as.data.frame(year_0_20)
@@ -1789,7 +1789,7 @@ ggsave("fig/marginal_effects_year.png", dpi = 600, bg = "white",
        height = 6, width = 10)
 ```
 
-## Scenarios
+### Scenarios
 
 ```{r,eval = FALSE, echo = TRUE}
 
