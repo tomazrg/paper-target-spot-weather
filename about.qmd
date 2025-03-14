@@ -941,14 +941,6 @@ summary(inla_0_60)
 
 
 ```{r}
-wd_0_60 %>%
-  dplyr::group_by(epidemic) %>% 
-  summarise(
-    n = n()/61
-  )
-```
-
-```{r}
 model_full <- inla(epidemic ~T2M +PRECTOTCORR + RH2M+
           f(year1, model = "iid", hyper = list(prec = list(param = c(0.001,0.001)))),
                         data = wd_0_60,
@@ -972,6 +964,16 @@ ln_bf
 
 
 ## By windows
+```{r}
+ma2 %>% 
+  group_by(year) %>% 
+  summarise(
+    sev = mean(mean_sev)
+  ) %>% 
+  ggplot(aes(as.factor(year),sev))+
+  geom_bar(stat = "identity")
+```
+
 
 ### 0 to 20
 ```{r}
@@ -990,6 +992,7 @@ inla_0_20 = inla(epidemic ~T2M +PRECTOTCORR + RH2M+
   control.predictor = list(compute = TRUE),
   control.compute = list(dic = TRUE, waic = TRUE, cpo = TRUE, config = TRUE))
 
+summary(inla_0_20)
 ```
 
 ```{r}
@@ -2092,7 +2095,7 @@ for(i in 1:nrow(wd_60_8022))
 mean(acc)
 ```
 
-# Dialy
+# Daily
 Esse também foi bom com dados diários
 ```{r,eval = FALSE, echo = TRUE}
 wd_0_20 = weather_data %>% 
@@ -2181,7 +2184,7 @@ for(i in 1:nrow(wd_0_20))
     results_prob <- modelt$summary.fitted.values
     
     # If prob > 0.5 then 1, else 0
-    results <- ifelse(results_prob$mean > 0.75,1,0)
+    results <- ifelse(results_prob$mean > 0.50,1,0)
     
     # Actual answers
     answers <- test$epidemic
