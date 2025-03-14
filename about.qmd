@@ -1730,7 +1730,7 @@ plot_60_80
 
 ### Joining
 
-```{r}
+```{r,warning = FALSE, message = FALSE, echo = TRUE}
 plot_grid(plot_0_20,plot_20_40,plot_40_60,plot_60_80, ncol = 4)
 
 
@@ -1976,7 +1976,7 @@ year_plot
 ggsave("fig/map_sev_year.png", dpi = 600, bg = "white",
        width = 10, height = 8)
 ```
-
+![](fig/map_sev_year.png)
 # Overall
 ```{r,eval = FALSE, echo = TRUE}
 
